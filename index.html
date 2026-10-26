@@ -220,6 +220,18 @@ td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
         <button type="button" data-v="phomemo">Phomemo</button>
       </div>
       <p class="hint" id="printerHint"></p>
+      <div class="grp" id="boxPhomemo">
+        <label class="f">Modello Phomemo<select id="sPhModel">
+          <option value="auto">Automatico (dal nome Bluetooth)</option>
+          <option value="M200">M200</option>
+          <option value="M220">M220</option>
+          <option value="M221">M221</option>
+          <option value="M250">M250</option>
+          <option value="M260">M260</option>
+        </select></label>
+        <button class="btn ghost" type="button" id="bScanAll">Non la trovi? Cerca tra tutti i dispositivi</button>
+        <p class="hint">Mostra ogni dispositivo Bluetooth vicino: scegli quello che compare solo quando la stampante è accesa. Prima chiudi l'app Phomemo, se è collegata alla stampante.</p>
+      </div>
       <label class="f">Formato rotolo<select id="sSize"></select></label>
       <label class="f">Densità di stampa (1 chiara – 5 scura)<input type="range" id="sDensity" min="1" max="5" step="1"></label>
       <label class="f" id="lblFeed">Avanzamento dopo la stampa (Phomemo)<select id="sFeed">
@@ -342,7 +354,7 @@ const store = {
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
 };
 let items = store.get("ef.items.v1", []);
-const settings = Object.assign({size:"50x30", density:3, qr:true, cold:true, lastLoc:"freezer", vacBy:{freezer:true, frigo:false}, printer:"niimbot", feed:32}, store.get("ef.settings.v1", {}));
+const settings = Object.assign({size:"50x30", density:3, qr:true, cold:true, lastLoc:"freezer", vacBy:{freezer:true, frigo:false}, printer:"niimbot", feed:32, phModel:"auto"}, store.get("ef.settings.v1", {}));
 const saveItems = () => { store.set("ef.items.v1", items); updateBadge(); };
 const saveSettings = () => store.set("ef.settings.v1", settings);
 
@@ -623,18 +635,18 @@ const PHOMEMO_MODELS = [
   {re:/M260/i, name:"M260", bytes:72, align:"center"}
 ];
 const PHOMEMO_SERVICES = [0xff00, 0xffe0, 0xae30, "49535343-fe7d-4ae5-8fa9-9fafd205e455"];
-async function connectPhomemo(){
+async function connectPhomemo(all){
   needBT();
   let device;
   try {
-    device = await navigator.bluetooth.requestDevice({
-      filters: [{namePrefix:"M"}, {namePrefix:"Phomemo"}, {namePrefix:"Q"}],
-      optionalServices: PHOMEMO_SERVICES
-    });
+    device = await navigator.bluetooth.requestDevice(all
+      ? {acceptAllDevices: true, optionalServices: PHOMEMO_SERVICES}
+      : {filters: [{namePrefix:"M"}, {namePrefix:"Phomemo"}, {namePrefix:"Q"}, {namePrefix:"P"}, {namePrefix:"T"}, {namePrefix:"Mr.in"}], optionalServices: PHOMEMO_SERVICES});
   } catch(e){ throw btGuard(e); }
   const name = device.name || "";
-  if (/M1[12]0/i.test(name)) throw new Error(`${name}: la serie M110/M120 usa un protocollo diverso, non ancora supportato.`);
-  let model = PHOMEMO_MODELS.find(x => x.re.test(name));
+  let model = settings.phModel !== "auto" ? PHOMEMO_MODELS.find(x => x.name === settings.phModel) : null;
+  if (!model && /M1[12]0/i.test(name)) throw new Error(`${name}: la serie M110/M120 usa un protocollo diverso, non ancora supportato.`);
+  if (!model) model = PHOMEMO_MODELS.find(x => x.re.test(name));
   const guessed = !model;
   if (!model) model = PHOMEMO_MODELS[0];
   const server = await device.gatt.connect();
@@ -643,7 +655,7 @@ async function connectPhomemo(){
   for (const uuid of PHOMEMO_SERVICES){
     try { const svc = await server.getPrimaryService(uuid); ch = await svc.getCharacteristic(0xff02); break; } catch(e){}
   }
-  if (!ch){ server.disconnect(); throw new Error("Stampante trovata ma senza il canale di stampa atteso: non sembra una Phomemo serie M."); }
+  if (!ch){ server.disconnect(); throw new Error(`«${name || "dispositivo senza nome"}» non ha il canale di stampa Phomemo: prova con un altro dispositivo della lista.`); }
   let withResp = !ch.properties.writeWithoutResponse && ch.properties.write;
   const send = async bytes => {
     const buf = new Uint8Array(bytes).buffer;
@@ -700,12 +712,12 @@ function setPrinterUI(){
   $("pBtn").textContent = on ? "Scollega" : "Collega";
   $("pName").textContent = on ? `${printer.name} collegata` : `${settings.printer === "phomemo" ? "Phomemo" : "Niimbot"} non collegata`;
 }
-async function connect(){
-  printer = settings.printer === "phomemo" ? await connectPhomemo() : await connectNiimbot();
+async function connect(all){
+  printer = settings.printer === "phomemo" ? await connectPhomemo(all) : await connectNiimbot();
   setPrinterUI(); fillSizes();
   const z = SIZES[settings.size];
   if (z && z.w > printer.maxMm){ settings.size = "50x30"; saveSettings(); fillSizes(); toast(`Formato non adatto a ${printer.name}: impostato 50 × 30 mm`); }
-  else if (printer.guessed) toast(`Modello non riconosciuto dal nome: uso le impostazioni M200`);
+  else if (printer.guessed) toast(`Collegata «${printer.name}». Modello non riconosciuto: uso le impostazioni M200 (puoi cambiarlo in Impostazioni).`);
   render();
 }
 async function printCanvas(cv, copies){
@@ -955,7 +967,7 @@ function fillSizes(){
   if (!SIZES[settings.size] || SIZES[settings.size].w > g.maxMm) settings.size = "50x30";
   $("sSize").value = settings.size;
   syncSeg("segPrinter", settings.printer);
-  $("lblFeed").hidden = $("feedHint").hidden = settings.printer !== "phomemo";
+  $("lblFeed").hidden = $("feedHint").hidden = $("boxPhomemo").hidden = settings.printer !== "phomemo";
   $("printerHint").textContent = settings.printer === "phomemo"
     ? "Serie M: M200, M220, M221, M250, M260. Etichette fino a 75 mm di larghezza."
     : "B1, B1 Pro, B21, B21 Pro e altri modelli supportati da NiimBlueLib. Etichette fino a 50 mm.";
@@ -966,6 +978,14 @@ $("segPrinter").addEventListener("click", async e => {
   settings.printer = b.dataset.v; saveSettings(); fillSizes(); setPrinterUI(); render();
 });
 $("sFeed").value = String(settings.feed);
+$("sPhModel").value = settings.phModel;
+$("sPhModel").addEventListener("change", () => { settings.phModel = $("sPhModel").value; saveSettings(); });
+$("bScanAll").addEventListener("click", async () => {
+  try {
+    if (printer && printer.isConnected()){ try { await printer.disconnect(); } catch(e){} printer = null; }
+    $("pName").textContent = "Ricerca…"; await connect(true); toast(`${printer.name} collegata`);
+  } catch(e){ printer = null; setPrinterUI(); toast(e.message || "Collegamento non riuscito"); }
+});
 $("sFeed").addEventListener("change", () => { settings.feed = Number($("sFeed").value); saveSettings(); });
 fillSizes();
 $("sDensity").value = settings.density; $("sQR").checked = settings.qr; $("sCold").checked = settings.cold;
