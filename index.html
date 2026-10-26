@@ -1,0 +1,1025 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Etichette Freezer</title>
+<meta name="theme-color" content="#0f6f8f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://unpkg.com/@mmote/niimbluelib@0.47.1/dist/umd/niimbluelib.min.js"></script>
+<style>
+/* Layout: una colonna da telefono — scorciatoie "Rifai", modulo essenziale, dettagli richiudibili, barra di stampa fissa in basso */
+:root{
+  --bg:#eef2f5; --surface:#ffffff; --ink:#14212b; --muted:#5d6e7b; --line:#d3dce3;
+  --accent:#0f6f8f; --accent-ink:#ffffff; --paper:#fbfbf8;
+  --ok:#2f7d4f; --warn:#9a6414; --bad:#b4372f; --ok-bg:#e3f2e9; --warn-bg:#fbf0dc; --bad-bg:#f8e1df;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e161c; --surface:#16222b; --ink:#e4ecf1; --muted:#93a5b2; --line:#2a3a46;
+  --accent:#4cb3d4; --accent-ink:#06202a; --paper:#f4f4ef;
+  --ok:#6fc893; --warn:#e5b25a; --bad:#ef7f75; --ok-bg:#16322a; --warn-bg:#3a2e17; --bad-bg:#3d1d1c; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0e161c; --surface:#16222b; --ink:#e4ecf1; --muted:#93a5b2; --line:#2a3a46;
+  --accent:#4cb3d4; --accent-ink:#06202a; --paper:#f4f4ef;
+  --ok:#6fc893; --warn:#e5b25a; --bad:#ef7f75; --ok-bg:#16322a; --warn-bg:#3a2e17; --bad-bg:#3d1d1c; color-scheme:dark;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 110px}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{font:800 30px/1 var(--f-display);letter-spacing:.01em;margin:0;text-transform:uppercase}
+h1 span{color:var(--accent)}
+h2{font:700 20px/1.1 var(--f-display);text-transform:uppercase;letter-spacing:.03em;margin:0}
+.printer{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.dot.on{background:var(--ok)}
+nav{display:grid;grid-template-columns:repeat(3,1fr);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+nav button{border:0;background:transparent;color:var(--muted);font:600 14px var(--f-body);padding:9px 4px;border-radius:7px;cursor:pointer;position:relative}
+nav button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.badge{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--bad);color:#fff;font:600 11px/18px var(--f-mono)}
+section.tab{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+label.f,.grp{display:flex;flex-direction:column;gap:5px;min-width:0}
+label.f{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+input,select{font:15px var(--f-body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{flex:1 1 auto;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:600 14px var(--f-body);padding:9px 10px;border-radius:8px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.seg button:disabled{opacity:.35;cursor:not-allowed}
+.check{display:flex;align-items:center;gap:10px;font-size:15px}
+.check input{width:20px;height:20px;accent-color:var(--accent);flex:none}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips button{flex:none;border:1px dashed var(--accent);background:transparent;color:var(--accent);font:600 13px var(--f-body);padding:7px 11px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.catline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.catline b{color:var(--ink);font-weight:600}
+.auto{font:600 11px var(--f-mono);color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 5px}
+details{border:1px solid var(--line);border-radius:10px;padding:0 12px}
+details[open]{padding-bottom:12px}
+summary{cursor:pointer;padding:11px 0;font-weight:600;font-size:14px;list-style-position:inside}
+details .inner{display:flex;flex-direction:column;gap:10px}
+.btn{border:0;border-radius:9px;padding:12px 14px;font:600 15px var(--f-body);cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:7px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.verdict{border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:4px;background:var(--ok-bg)}
+.verdict.warn{background:var(--warn-bg)} .verdict.bad{background:var(--bad-bg)}
+.verdict .big{font:700 26px/1 var(--f-display);letter-spacing:.02em}
+.verdict small{color:var(--muted);font-size:13px}
+.verdict ul{margin:4px 0 0;padding-left:18px;font-size:13px}
+.preview{background:var(--line);border-radius:10px;padding:14px;display:flex;justify-content:center}
+.preview canvas{background:var(--paper);border-radius:4px;box-shadow:0 1px 0 rgba(0,0,0,.15),0 6px 14px rgba(0,0,0,.12);width:100%;max-width:360px;height:auto;image-rendering:pixelated}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--surface);border-top:1px solid var(--line);
+  padding-top:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar .in{max-width:560px;margin:0 auto;display:flex;gap:8px;align-items:center}
+.bar .when{flex:1 1 auto;min-width:0;font-size:12px;color:var(--muted);line-height:1.2}
+.bar .when b{display:block;font:700 18px/1.1 var(--f-display);color:var(--ink);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px}
+.stepper button{border:0;background:transparent;color:var(--ink);font:600 18px var(--f-body);width:34px;height:42px;cursor:pointer}
+.stepper span{min-width:22px;text-align:center;font:600 15px var(--f-mono)}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.toolbar input{flex:1 1 160px}
+.summary{display:flex;gap:8px;flex-wrap:wrap}
+.summary div{flex:1 1 30%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--muted)}
+.summary b{display:block;font:700 22px/1.1 var(--f-display);color:var(--ink)}
+.summary .alert b{color:var(--bad)}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center}
+.item.hl{outline:2px solid var(--accent)}
+.item .name{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.item .meta{grid-column:1/-1;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.item .meta b{font-family:var(--f-mono);font-weight:500;color:var(--ink)}
+.item .ops{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.pill{font:600 12px var(--f-mono);padding:3px 8px;border-radius:99px;white-space:nowrap;background:var(--ok-bg);color:var(--ok)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.bad{background:var(--bad-bg);color:var(--bad)}
+.empty{text-align:center;color:var(--muted);padding:28px 10px}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px;border-bottom:1px solid var(--line)}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+.scroll{overflow-x:auto}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:9px;font-size:14px;max-width:calc(100% - 32px);z-index:20}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Etichette <span>Freezer</span></h1>
+    <div class="printer"><span class="dot" id="pDot"></span><span id="pName">Stampante non collegata</span>
+      <button class="btn small ghost" id="pBtn" type="button">Collega</button></div>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" data-tab="nuova" aria-selected="true" type="button">Nuova</button>
+    <button role="tab" data-tab="inv" aria-selected="false" type="button">Inventario<span class="badge" id="invBadge" hidden></span></button>
+    <button role="tab" data-tab="set" aria-selected="false" type="button">Impostazioni</button>
+  </nav>
+
+  <!-- NUOVA ETICHETTA -->
+  <section class="tab" id="tab-nuova">
+    <form class="card" id="form" autocomplete="off">
+      <div class="grp" id="boxRecent" hidden><span class="lbl">Rifai</span><div class="chips" id="recent"></div></div>
+
+      <div class="grp">
+        <label class="f" for="fName">Cosa è</label>
+        <input id="fName" maxlength="40" placeholder="es. Petto di pollo, Pesto, Mortadella">
+        <div class="catline"><span>Categoria:</span><b id="catName"></b><span class="auto" id="catAuto" hidden>AUTO</span></div>
+        <select id="fCat" aria-label="Categoria"></select>
+      </div>
+
+      <div class="grp"><span class="lbl">Stato</span>
+        <div class="seg" id="segState">
+          <button type="button" data-v="crudo">Crudo da cuocere</button>
+          <button type="button" data-v="preparato">Preparato da me</button>
+          <button type="button" data-v="pronto">Pronto da mangiare</button>
+          <button type="button" data-v="scongelato">Già scongelato</button>
+        </div>
+        <p class="hint" id="stateHint"></p>
+      </div>
+
+      <div class="grp" id="boxFlags" hidden><span class="lbl">Contiene (vince la più restrittiva)</span>
+        <label class="check"><input type="checkbox" id="fgUova"> Uova crude (maionese, aioli, tiramisù)</label>
+        <label class="check"><input type="checkbox" id="fgLatte"> Latte, panna o burro</label>
+        <label class="check"><input type="checkbox" id="fgAglio"> Aglio o erbe crude sott'olio</label>
+        <label class="check"><input type="checkbox" id="fgPesce"> Pesce o frutti di mare</label>
+      </div>
+
+      <div class="grp" id="boxOpen" hidden><span class="lbl">Confezione</span>
+        <div class="seg" id="segOpen">
+          <button type="button" data-v="aperta">Aperta / al banco</button>
+          <button type="button" data-v="chiusa">Ancora chiusa</button>
+        </div>
+        <label class="f" id="lblOpened">Aperta il<input type="date" id="fOpened"></label>
+      </div>
+
+      <div class="grp"><span class="lbl">Dove va</span>
+        <div class="seg" id="segLoc">
+          <button type="button" data-v="freezer">Freezer</button>
+          <button type="button" data-v="frigo">Frigo</button>
+        </div>
+        <label class="check"><input type="checkbox" id="fVac"> Sottovuoto</label>
+      </div>
+
+      <label class="f">Peso / porzioni (facoltativo)<input id="fWeight" maxlength="18" placeholder="es. 400 g · 2 porz."></label>
+
+      <details id="more">
+        <summary>Date e scadenze <span class="hint" id="moreHint" style="display:inline"></span></summary>
+        <div class="inner">
+          <div class="row">
+            <label class="f" id="lblPack">Confezionato il<input type="date" id="fPack"></label>
+            <label class="f" id="lblBought">Acquistato il<input type="date" id="fBought"></label>
+          </div>
+          <label class="f">Scadenza stampata sulla confezione<input type="date" id="fExp"></label>
+          <label class="check"><input type="checkbox" id="fManual"> Imposto io la data di consumo</label>
+          <label class="f" id="lblManual" hidden>Consumare entro<input type="date" id="fManualDate"></label>
+        </div>
+      </details>
+
+      <div class="verdict" id="verdict"></div>
+      <div class="preview"><canvas id="cv"></canvas></div>
+    </form>
+  </section>
+
+  <!-- INVENTARIO -->
+  <section class="tab" id="tab-inv" hidden>
+    <div class="summary" id="summary"></div>
+    <div class="toolbar">
+      <input id="q" placeholder="Cerca nome o codice (#A7K2)" aria-label="Cerca">
+      <div class="seg" id="segFilter" style="flex:1 1 240px">
+        <button type="button" data-v="tutti" aria-pressed="true">Tutti</button>
+        <button type="button" data-v="freezer">Freezer</button>
+        <button type="button" data-v="frigo">Frigo</button>
+        <button type="button" data-v="consumati">Finiti</button>
+      </div>
+    </div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <!-- IMPOSTAZIONI -->
+  <section class="tab" id="tab-set" hidden>
+    <div class="card">
+      <h2>Stampante</h2>
+      <div class="seg" id="segPrinter">
+        <button type="button" data-v="niimbot">Niimbot</button>
+        <button type="button" data-v="phomemo">Phomemo</button>
+      </div>
+      <p class="hint" id="printerHint"></p>
+      <label class="f">Formato rotolo<select id="sSize"></select></label>
+      <label class="f">Densità di stampa (1 chiara – 5 scura)<input type="range" id="sDensity" min="1" max="5" step="1"></label>
+      <label class="f" id="lblFeed">Avanzamento dopo la stampa (Phomemo)<select id="sFeed">
+        <option value="0">Nessuno</option>
+        <option value="16">2 mm</option>
+        <option value="32">4 mm</option>
+        <option value="48">6 mm</option>
+        <option value="80">10 mm</option>
+      </select></label>
+      <p class="hint" id="feedHint">Se le etichette escono spostate rispetto allo spazio tra una e l'altra, cambia questo valore.</p>
+      <label class="check"><input type="checkbox" id="sQR"> Stampa il QR (apre la scheda nell'inventario)</label>
+      <label class="check"><input type="checkbox" id="sCold"> Il mio frigo sta a 4 °C o meno</label>
+      <p class="hint">Se il frigo è più caldo (5–7 °C) le durate in frigo si riducono del 30%. Per il sottovuoto conviene stare sui 3 °C: un termometro da frigo costa pochi euro.</p>
+    </div>
+    <div class="card">
+      <h2>Backup</h2>
+      <p class="hint">L'inventario resta solo in questo telefono. Esporta ogni tanto il file di backup.</p>
+      <div class="row">
+        <button class="btn ghost" type="button" id="bExport">Esporta backup</button>
+        <label class="btn ghost" style="text-align:center">Importa backup<input type="file" id="fImport" accept="application/json" hidden></label>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Tabella durate</h2>
+      <p class="hint">Valori prudenti, basati sulle tabelle USDA/FSIS. Freezer a −18 °C: la data indica la qualità migliore, non la sicurezza. Il sottovuoto in frigo non ha durate ufficiali: qui non supera mai il limite alto delle tabelle.</p>
+      <div class="scroll"><table id="tbl"></table></div>
+    </div>
+  </section>
+</div>
+
+<div class="bar" id="bar">
+  <div class="in">
+    <div class="when" id="barWhen">Entro<b>—</b></div>
+    <div class="stepper" title="Numero di buste: stampa un'etichetta per busta">
+      <button type="button" id="bMinus" aria-label="Una busta in meno">−</button><span id="bagsN">1</span><button type="button" id="bPlus" aria-label="Una busta in più">+</button>
+    </div>
+    <button class="btn ghost" type="button" id="bSave">Salva</button>
+    <button class="btn" type="button" id="bPrint">Stampa</button>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+/* ---------- Durate: fr/frV = giorni in frigo (normale / sottovuoto), fz/fzV = mesi in freezer.
+   Base USDA/FSIS: il sottovuoto in frigo non supera mai il limite alto della tabella ufficiale. ---------- */
+const CAT = {
+  manzo:    {n:"Manzo / vitello a pezzi",       fr:3, frV:5, fz:9, fzV:18},
+  maiale:   {n:"Maiale / agnello / coniglio",   fr:3, frV:5, fz:6, fzV:12},
+  pollame:  {n:"Pollame",                       fr:2, frV:2, fz:9, fzV:15},
+  macinato: {n:"Macinato / hamburger",          fr:1, frV:2, fz:3, fzV:6},
+  salsiccia:{n:"Salsiccia fresca",              fr:1, frV:2, fz:2, fzV:3},
+  pesceM:   {n:"Pesce magro (merluzzo, orata…)",fr:1, frV:1, fz:6, fzV:9,  fish:true},
+  pesceG:   {n:"Pesce grasso (salmone, sgombro…)",fr:1,frV:1, fz:2, fzV:4, fish:true},
+  mare:     {n:"Molluschi / crostacei",         fr:1, frV:1, fz:3, fzV:6,  fish:true},
+  salumiC:  {n:"Salumi cotti (mortadella, cotto, wurstel)",   fr:3, frV:5, fz:1, fzV:2, ready:true},
+  salumiS:  {n:"Salumi stagionati affettati (crudo, salame)", fr:5, frV:7, fz:1, fzV:2, ready:true},
+  pancetta: {n:"Pancetta / guanciale / bacon",  fr:7, frV:7, fz:1, fzV:2, ready:true},
+  formS:    {n:"Formaggio stagionato",          fr:21,frV:35,fz:6, fzV:6, ready:true},
+  formF:    {n:"Formaggio fresco / mozzarella", fr:3, frV:4, fz:2, fzV:3, ready:true},
+  cotto:    {n:"Piatto cotto (lasagne, arrosto, polpette)", fr:3, frV:4, fz:3, fzV:6, cooked:true},
+  sugoV:    {n:"Salsa: sugo di pomodoro / vegetale", fr:4, frV:5, fz:6, fzV:8, cooked:true},
+  ragu:     {n:"Salsa: ragù / sugo di carne",   fr:3, frV:4, fz:3, fzV:4, cooked:true},
+  pesto:    {n:"Salsa: pesto / erbe crude",     fr:3, frV:4, fz:6, fzV:8, cooked:true, preset:{aglio:true}},
+  maionese: {n:"Salsa: maionese / aioli (uova crude)", fr:2, frV:2, fz:0, fzV:0, cooked:true, preset:{uova:true}},
+  besciamella:{n:"Salsa: besciamella / alla panna", fr:3, frV:3, fz:3, fzV:3, cooked:true, preset:{latte:true}},
+  acida:    {n:"Salsa acida (chutney, ketchup, agrodolce)", fr:14, frV:21, fz:6, fzV:8, cooked:true},
+  brodo:    {n:"Brodo / zuppa / minestra",      fr:3, frV:4, fz:3, fzV:4, cooked:true},
+  verdS:    {n:"Verdura sbollentata",           fr:3, frV:5, fz:10,fzV:14},
+  verdC:    {n:"Verdura cruda",                 fr:4, frV:6, fz:3, fzV:6},
+  frutta:   {n:"Frutta",                        fr:4, frV:6, fz:10,fzV:12},
+  pane:     {n:"Pane / pizza / dolci",          fr:4, frV:5, fz:2, fzV:4},
+  pastaF:   {n:"Pasta fresca / impasti",        fr:2, frV:4, fz:2, fzV:4},
+  altro:    {n:"Altro (data a mano consigliata)",fr:2, frV:2, fz:3, fzV:3}
+};
+const COOKED_MEAT = {fr:3, frV:4, fz:3, fzV:6};
+
+/* Parole chiave nel nome → categoria (vince la parola più lunga trovata) */
+const KW = {
+  pollame:"pollo petto coscia cosce sovracosce sovracoscia alette ali tacchino faraona anatra galletto",
+  macinato:"macinato macinata hamburger burger",
+  salsiccia:"salsiccia salsicce salamella luganega",
+  manzo:"manzo vitello bistecca bistecche fiorentina filetto costata tagliata fesa scamone spezzatino roastbeef girello brasato ossobuco",
+  maiale:"maiale lonza braciola braciole costine costina agnello capretto coniglio arista",
+  pesceG:"salmone sgombro tonno sardine sarde alici acciughe trota spada aringa",
+  pesceM:"merluzzo orata branzino spigola nasello sogliola platessa baccala rombo dentice cernia pesce",
+  mare:"gamberi gamberetti calamari calamaro seppie seppia polpo cozze vongole scampi totani mazzancolle",
+  salumiC:"mortadella wurstel 'prosciutto cotto' 'arrosto affettato' 'fesa di tacchino'",
+  salumiS:"'prosciutto crudo' crudo salame bresaola speck coppa culatello",
+  pancetta:"pancetta guanciale bacon lardo",
+  formS:"parmigiano grana pecorino asiago fontina emmental provolone montasio formaggio",
+  formF:"mozzarella burrata ricotta stracchino crescenza mascarpone scamorza squacquerone robiola",
+  maionese:"maionese aioli 'salsa tartara'",
+  besciamella:"besciamella 'salsa alla panna' 'crema pasticcera'",
+  pesto:"pesto 'salsa verde' chimichurri",
+  ragu:"ragu bolognese 'sugo di carne'",
+  sugoV:"sugo passata pomodoro 'salsa di pomodoro' pomarola",
+  acida:"chutney ketchup agrodolce barbecue",
+  brodo:"brodo zuppa minestra minestrone vellutata 'crema di'",
+  cotto:"lasagne lasagna parmigiana cannelloni polpette arrosto 'pollo arrosto' risotto spezzatino-cotto",
+  verdS:"spinaci fagiolini broccoli cavolfiore piselli bietole 'cime di rapa' sbollentat",
+  verdC:"peperoni zucchine carote cipolla cipolle sedano soffritto funghi melanzane",
+  frutta:"fragole 'frutti di bosco' mirtilli lamponi banane banana mango pesche frutta",
+  pane:"pane pizza focaccia brioche croissant torta biscotti panini piadina",
+  pastaF:"'pasta fresca' ravioli tortellini gnocchi impasto sfoglia tagliatelle lasagnette"
+};
+const KWLIST = [];
+for (const [cat, s] of Object.entries(KW)) (s.match(/'[^']+'|\S+/g) || []).forEach(w => KWLIST.push([w.replace(/'/g, ""), cat]));
+const norm = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function guessCat(name){
+  const n = " " + norm(name) + " ";
+  let best = null, len = 0;
+  for (const [w, cat] of KWLIST){ if (n.includes(w) && w.length > len){ best = cat; len = w.length; } }
+  return best;
+}
+
+/* ---------- Storage sicuro ---------- */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+};
+let items = store.get("ef.items.v1", []);
+const settings = Object.assign({size:"50x30", density:3, qr:true, cold:true, lastLoc:"freezer", vacBy:{freezer:true, frigo:false}, printer:"niimbot", feed:32}, store.get("ef.settings.v1", {}));
+const saveItems = () => { store.set("ef.items.v1", items); updateBadge(); };
+const saveSettings = () => store.set("ef.settings.v1", settings);
+
+/* ---------- Date ---------- */
+const $ = id => document.getElementById(id);
+const DAY = 86400000;
+const iso = d => { const z = new Date(d.getTime() - d.getTimezoneOffset()*60000); return z.toISOString().slice(0,10); };
+const parse = s => s ? new Date(s + "T12:00:00") : null;
+const today = () => parse(iso(new Date()));
+const addDays = (d, n) => new Date(d.getTime() + n*DAY);
+const addMonths = (d, n) => { const r = new Date(d); const day = r.getDate(); r.setDate(1); r.setMonth(r.getMonth()+n); r.setDate(Math.min(day, new Date(r.getFullYear(), r.getMonth()+1, 0).getDate())); return r; };
+const fmt = d => d.toLocaleDateString("it-IT", {day:"2-digit", month:"2-digit", year:"2-digit"});
+const fmtLong = d => d.toLocaleDateString("it-IT", {day:"numeric", month:"long", year:"numeric"});
+const daysBetween = (a, b) => Math.round((b - a) / DAY);
+const giorni = n => n === 1 ? "1 giorno" : `${n} giorni`;
+const mesi = n => n === 1 ? "1 mese" : `${n} mesi`;
+const newId = () => { const c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s; do { s = ""; for (let i=0;i<4;i++) s += c[Math.floor(Math.random()*c.length)]; } while (items.some(x => x.id === s)); return s; };
+const normState = s => s === "cotto" ? "preparato" : s;   // etichette create con la prima versione
+
+/* ---------- Stato del form ---------- */
+const st = {state:"crudo", loc:settings.lastLoc, open:"aperta", bags:1, catAuto:true};
+
+function readForm(){
+  const pronto = st.state === "pronto";
+  return {
+    name: $("fName").value.trim(), cat: $("fCat").value, state: st.state, loc: st.loc, vac: $("fVac").checked,
+    pack: $("fPack").value, exp: $("fExp").value, weight: $("fWeight").value.trim(),
+    start: pronto ? (st.open === "aperta" ? $("fOpened").value : "") : $("fBought").value,
+    open: pronto ? st.open === "aperta" : null,
+    manual: $("fManual").checked, manualDate: $("fManualDate").value,
+    flags: st.state === "preparato" ? {uova: $("fgUova").checked, latte: $("fgLatte").checked, aglio: $("fgAglio").checked, pesce: $("fgPesce").checked} : null
+  };
+}
+
+/* ---------- Calcolo della data di consumo ---------- */
+function calc(f){
+  const c = CAT[f.cat] || CAT.altro, notes = [], warns = [];
+  const state = normState(f.state);
+  let level = "ok", end = null, basis = "";
+  const pack = parse(f.pack) || today();
+  const start = parse(f.start);
+  const exp = parse(f.exp);
+  const fl = f.flags || {};
+
+  let v = (state === "preparato" && !c.cooked) ? {...COOKED_MEAT} : {fr:c.fr, frV:c.frV, fz:c.fz, fzV:c.fzV};
+  let noFreeze = c.fz === 0;
+  const cap = n => { v.fr = Math.min(v.fr, n); v.frV = Math.min(v.frV, n); };
+  if (fl.uova){ cap(2); noFreeze = true; }
+  if (fl.latte) cap(3);
+  if (fl.aglio) cap(4);
+  if (fl.pesce){ cap(2); v.fz = Math.min(v.fz, 3); v.fzV = Math.min(v.fzV, 3); }
+
+  let fridgeDays = f.vac ? v.frV : v.fr;
+  if (!settings.cold) fridgeDays = Math.max(1, Math.floor(fridgeDays * 0.7));
+  const isFish = c.fish || fl.pesce;
+
+  if (f.loc === "freezer"){
+    if (state === "scongelato")
+      return {level:"bad", end:null, basis:"Non ricongelare", notes, warns:["Un alimento crudo già scongelato non va ricongelato. Cuocilo e congela il preparato (stato: Preparato da me)."]};
+    if (noFreeze)
+      return {level:"bad", end:null, basis:"Non congelabile", notes, noFreeze, warns:["Le salse con uova crude non si congelano: si separano e restano a rischio. Tienila in frigo e consumala entro 2 giorni."]};
+    if (state === "crudo" && start){
+      const used = daysBetween(start, pack), budget = f.vac ? c.frV : c.fr;
+      if (used > budget){ warns.push(`Era in frigo da ${giorni(used)} (limite ${budget}): congelare non lo rende di nuovo fresco. Meglio consumarlo subito.`); level = "warn"; }
+    }
+    if (exp && exp < pack){ warns.push("La scadenza della confezione è già passata."); level = "bad"; }
+    const months = f.vac ? v.fzV : v.fz;
+    end = addMonths(pack, months);
+    basis = `${mesi(months)} a −18 °C${f.vac ? " (sottovuoto)" : ""}`;
+    notes.push("È la data di qualità migliore: dopo resta sicuro ma perde sapore e consistenza.");
+    if (f.vac && isFish) warns.push("Pesce sottovuoto: apri la busta prima di scongelarlo, sempre in frigo. Chiuso e senza ossigeno è a rischio botulino.");
+    if (state === "crudo") notes.push("Scongela in frigo e cuoci entro 24 h. Non ricongelare da crudo.");
+    else notes.push("Scongela in frigo e consuma entro 24 h, riscaldando bene i cotti.");
+    if (fl.latte) notes.push("Con latte o panna la salsa può separarsi: frusta mentre la scaldi.");
+    if (f.cat === "pesto") notes.push("Il pesto si congela meglio senza formaggio: aggiungilo dopo.");
+    if (["salumiC","salumiS","pancetta"].includes(f.cat)) notes.push("I salumi in freezer diventano più acquosi: usali per cucinare.");
+    if (f.vac && !isFish) notes.push("Il sottovuoto in freezer allunga davvero: niente bruciature da freddo.");
+  } else {
+    let from = null;
+    if (state === "preparato"){ from = pack; basis = `${giorni(fridgeDays)} dalla preparazione`; }
+    else if (state === "scongelato"){ from = pack; fridgeDays = 1; basis = "24 h dallo scongelamento"; notes.push("Il crudo scongelato va cotto entro 24 h e non si ricongela."); }
+    else if (state === "pronto"){
+      if (f.open){ from = start || today(); basis = `${giorni(fridgeDays)} dall'apertura`; }
+      else if (exp){ end = exp; basis = "confezione chiusa: vale la scadenza stampata"; notes.push("Quando la apri, tocca «Aperto oggi» nell'inventario: la data si aggiorna."); }
+      else return {level:"warn", end:null, basis:"Manca la scadenza", notes, warns:["Per una confezione chiusa inserisci la scadenza stampata (in «Date e scadenze»)."]};
+    } else { from = start || pack; basis = `${giorni(fridgeDays)} dall'acquisto`; }
+
+    if (from) end = addDays(from, fridgeDays);
+    if (exp && (state === "crudo" || state === "pronto") && exp < end){ end = exp; basis = "scadenza della confezione (arriva prima)"; }
+    if (f.vac && isFish) warns.push("Pesce sottovuoto in frigo: nessun giorno in più. Senza ossigeno possono crescere batteri pericolosi; se non lo mangi subito, congelalo.");
+    else if (f.vac) notes.push("Il sottovuoto in frigo allunga poco: conta di più la temperatura.");
+    if (fl.aglio) warns.push("Aglio o erbe crude sotto olio: solo in frigo, mai a temperatura ambiente (rischio botulino). Se avanza, congela.");
+    if (fl.uova) warns.push("Uova crude: massimo 2 giorni e non congelabile.");
+    if (f.cat === "pesto") notes.push("Copri il pesto con un velo d'olio per non farlo annerire.");
+    if (!settings.cold) notes.push("Durata ridotta perché il frigo è sopra i 4 °C (Impostazioni).");
+    if (end < today()){ warns.push("Con questi dati è già oltre la data di consumo."); level = "bad"; }
+    else if (daysBetween(today(), end) <= 1 && level !== "bad") level = "warn";
+  }
+  if (f.manual && f.manualDate){ end = parse(f.manualDate); basis = "data impostata a mano"; }
+  if (f.cat === "altro" && !f.manual) warns.push("Per «Altro» la durata è generica: meglio impostare la data a mano.");
+  if (warns.length && level === "ok") level = "warn";
+  return {level, end, basis, notes, warns, noFreeze};
+}
+
+/* ---------- Disegno etichetta (1:1 con la testina: 8 px/mm) ---------- */
+/* Geometria: pixel per mm e larghezza massima dipendono dalla stampante collegata (o dal tipo scelto) */
+const SIZES = {
+  "50x30":{w:50,h:30}, "40x30":{w:40,h:30}, "50x40":{w:50,h:40}, "50x50":{w:50,h:50},
+  "40x60":{w:40,h:60}, "60x40":{w:60,h:40}, "70x50":{w:70,h:50}, "75x50":{w:75,h:50}
+};
+function printerGeom(){
+  if (printer) return {dpm: printer.dpi / 25.4, maxPx: printer.maxPx, maxMm: printer.maxMm};
+  return settings.printer === "phomemo" ? {dpm: 8, maxPx: 608, maxMm: 75} : {dpm: 8, maxPx: 384, maxMm: 50};
+}
+function labelSize(){
+  const z = SIZES[settings.size] || SIZES["50x30"], g = printerGeom();
+  return {W: Math.min(Math.round(z.w * g.dpm), g.maxPx), H: Math.round(z.h * g.dpm), k: g.dpm / 8};
+}
+const FD = '"Barlow Condensed","Arial Narrow",sans-serif', FM = '"IBM Plex Mono",monospace';
+function textW(ctx, t, size, weight, fam){ ctx.font = `${weight} ${size}px ${fam}`; return ctx.measureText(t).width; }
+function fitSize(ctx, t, maxW, size, min, weight, fam){ let s = size; while (s > min && textW(ctx, t, s, weight, fam) > maxW) s--; return s; }
+function ellipsize(ctx, t, maxW, size, weight, fam){ if (textW(ctx, t, size, weight, fam) <= maxW) return t; while (t.length > 1 && textW(ctx, t + "…", size, weight, fam) > maxW) t = t.slice(0, -1); return t.trimEnd() + "…"; }
+function splitName(ctx, text, maxW, size){
+  // riempie la prima riga, il resto va nella seconda
+  const words = text.split(/\s+/).filter(Boolean); let a = "";
+  let i = 0;
+  for (; i < words.length; i++){ const t = a ? a + " " + words[i] : words[i]; if (textW(ctx, t, size, 800, FD) <= maxW || !a) a = t; else break; }
+  return [a, words.slice(i).join(" ")].filter(Boolean);
+}
+function drawQR(ctx, text, x, y, size){
+  if (typeof qrcode !== "function") return false;
+  const q = qrcode(0, "L"); q.addData(text); q.make();
+  const n = q.getModuleCount(), cell = Math.floor(size / n), off = Math.floor((size - cell*n)/2);
+  ctx.fillStyle = "#000";
+  for (let r=0;r<n;r++) for (let c=0;c<n;c++) if (q.isDark(r,c)) ctx.fillRect(x+off+c*cell, y+off+r*cell, cell, cell);
+  return true;
+}
+function itemUrl(id){ return location.href.split("#")[0] + "#i-" + id; }
+
+function drawLabel(cv, it){
+  const {W, H, k} = labelSize();
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = "#000"; ctx.textBaseline = "top";
+  const m = Math.round(10 * k), state = normState(it.state);
+  const barH = Math.round(H * (H > 260 ? 0.24 : 0.28));
+  const qrOn = settings.qr && it.id && typeof qrcode === "function";
+  const qrS = qrOn ? Math.min(H - barH - m*2, Math.round(W*0.30)) : 0;
+  const colW = W - m*2 - (qrOn ? qrS + 8 : 0);
+  let y = m - 2;
+
+  // nome: una riga grande, altrimenti due righe
+  const name = (it.name || "Senza nome").toUpperCase();
+  const big = Math.round(H * 0.19), mid = Math.round(H * 0.145), small = Math.round(H * 0.115);
+  let lines, ns;
+  if (textW(ctx, name, big, 800, FD) <= colW){ lines = [name]; ns = big; }
+  else {
+    ns = mid; lines = splitName(ctx, name, colW, ns);
+    const maxL = H >= 320 ? 3 : 2;
+    const fits = ls => ls.length <= maxL && ls.every(l => textW(ctx, l, ns, 800, FD) <= colW);
+    const split = (t, n) => { const out = []; let rest = t; while (rest && out.length < n - 1){ const [a, b] = splitName(ctx, rest, colW, ns); out.push(a); rest = b || ""; } if (rest) out.push(rest); return out; };
+    lines = split(name, maxL);
+    if (!fits(lines)){ ns = small; lines = split(name, maxL); }
+    lines = lines.map(l => ellipsize(ctx, l, colW, ns, 800, FD));
+  }
+  ctx.font = `800 ${ns}px ${FD}`;
+  lines.forEach(l => { ctx.fillText(l, m, y); y += Math.round(ns * 0.93); });
+  y += 5;
+
+  // badge: stato pieno, luogo vuoto; la dimensione si adatta alla colonna
+  const STL = {crudo:"CRUDO", preparato:"PREPARATO", pronto:"PRONTO", scongelato:"SCONGELATO"};
+  const badges = [STL[state] || "", it.loc === "freezer" ? "FREEZER" : "FRIGO"];
+  let bs = Math.round(H * 0.085);
+  while (bs > 12 && badges.reduce((s, b) => s + textW(ctx, b, bs, 700, FD) + 15, 0) > colW) bs--;
+  let bx = m;
+  ctx.font = `700 ${bs}px ${FD}`;
+  badges.forEach((b, i) => {
+    const w = ctx.measureText(b).width + 10;
+    if (i === 0){ ctx.fillRect(bx, y, w, bs + 6); ctx.fillStyle = "#fff"; ctx.fillText(b, bx+5, y+3); ctx.fillStyle = "#000"; }
+    else { ctx.lineWidth = Math.max(2, Math.round(2*k)); ctx.strokeRect(bx+1, y+1, w-2, bs + 4); ctx.fillText(b, bx+5, y+3); }
+    bx += w + 5;
+  });
+  y += bs + 11;
+
+  // righe di dettaglio: data, avvertenze, peso (unite quando c'è spazio)
+  const sv = it.vac ? " SV" : "";
+  let dline;
+  if (state === "pronto" && it.loc === "frigo") dline = it.open === false ? `CHIUSO${sv}` : `APERTO ${fmt(parse(it.start) || parse(it.pack))}${sv}`;
+  else if (state === "scongelato") dline = `SCONG ${fmt(parse(it.thawed || it.pack))}`;
+  else dline = `${state === "preparato" ? "PREP" : "CONF"} ${fmt(parse(it.pack) || today())}${sv}`;
+  const fl = it.flags || {};
+  const warn = [fl.uova && "UOVA CRUDE", fl.aglio && "NO T. AMB.", fl.pesce && "PESCE"].filter(Boolean).join(" ");
+  const ds = Math.round(H * 0.072);
+  const room = H - barH - 4;
+  const det = [dline];
+  if (it.weight){ const j = `${dline} · ${it.weight}`; if (textW(ctx, j, ds, 600, FM) <= colW) det[0] = j; else det.push(it.weight); }
+  if (warn) det.splice(1, 0, warn);
+  det.forEach(t => {
+    if (y + ds > room) return;
+    const s = fitSize(ctx, t, colW, ds, 11, 600, FM);
+    ctx.font = `600 ${s}px ${FM}`; ctx.fillText(ellipsize(ctx, t, colW, s, 600, FM), m, y); y += s + 4;
+  });
+
+  if (qrOn) drawQR(ctx, itemUrl(it.id), W - m - qrS, m, qrS);
+
+  // fascia "ENTRO"
+  const by = H - barH;
+  ctx.fillStyle = "#000"; ctx.fillRect(0, by, W, barH);
+  ctx.fillStyle = "#fff";
+  const sm = Math.round(barH * 0.3);
+  ctx.font = `700 ${sm}px ${FD}`;
+  ctx.fillText("ENTRO", m, by + 5);
+  ctx.textAlign = "right"; ctx.fillText(it.id ? "#" + it.id : "", W - m, by + 5); ctx.textAlign = "left";
+  const endTxt = it.end ? fmt(parse(it.end)) : "—";
+  const tail = it.loc === "freezer" ? (state === "crudo" ? "NON RICONGELARE" : "SCONG.: 24 h") : "";
+  const tailW = tail ? Math.min(textW(ctx, tail, sm, 700, FD), W * 0.44) + 10 : 0;
+  const es = fitSize(ctx, endTxt, W - m*2 - tailW, Math.round(barH * 0.62), 16, 800, FD);
+  ctx.font = `800 ${es}px ${FD}`;
+  ctx.fillText(endTxt, m, by + barH - es - 3);
+  if (tail){
+    const ts = fitSize(ctx, tail, W * 0.44, sm, 10, 700, FD);
+    ctx.font = `700 ${ts}px ${FD}`; ctx.textAlign = "right";
+    ctx.fillText(tail, W - m, by + barH - ts - 7); ctx.textAlign = "left";
+  }
+  ctx.fillStyle = "#000";
+
+  // soglia netta bianco/nero: la testina termica non ha grigi
+  const img = ctx.getImageData(0,0,W,H), d = img.data;
+  for (let i=0;i<d.length;i+=4){ const v = (d[i]*0.3 + d[i+1]*0.59 + d[i+2]*0.11) < 150 ? 0 : 255; d[i]=d[i+1]=d[i+2]=v; d[i+3]=255; }
+  ctx.putImageData(img,0,0);
+}
+
+/* ---------- Stampanti (Web Bluetooth): un'interfaccia comune, due motori ---------- */
+let printer = null;   // {kind, name, dpi, maxPx, maxMm, print(canvas, copies), disconnect(), isConnected()}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const btGuard = e => {
+  if (/SecurityError|permissions policy|disallowed|not allowed/i.test(String(e && (e.name + " " + e.message))))
+    return new Error("Questa anteprima non può usare il Bluetooth. Per stampare apri l'app pubblicata su GitHub Pages con Chrome.");
+  if (e && e.name === "NotFoundError") return new Error("Nessuna stampante scelta.");
+  return e;
+};
+function needBT(){ if (!("bluetooth" in navigator)) throw new Error("Qui il Bluetooth non è disponibile. Per stampare apri l'app pubblicata su https con Chrome per Android."); }
+
+/* Niimbot: protocollo gestito da NiimBlueLib */
+async function connectNiimbot(){
+  needBT();
+  if (!window.niimbluelib) throw new Error("Libreria Niimbot non caricata: serve internet al primo avvio.");
+  const nb = niimbluelib, client = new nb.NiimbotBluetoothClient();
+  let info;
+  try { info = await client.connect(); } catch(e){ throw btGuard(e); }
+  const meta = client.getModelMetadata();
+  const dpi = (meta && meta.dpi) || 203, maxPx = (meta && meta.printheadPixels) || 384;
+  const p = {
+    kind: "niimbot", name: meta ? meta.model.replace(/_/g, " ") : (info.deviceName || "Niimbot"), dpi, maxPx,
+    maxMm: Math.floor(maxPx / (dpi / 25.4)),
+    isConnected: () => client.isConnected(),
+    disconnect: () => client.disconnect(),
+    async print(cv, copies){
+      const taskName = client.getPrintTaskType() || "B1";
+      const enc = nb.ImageEncoder.encodeCanvas(cv, nb.PageColorType.SingleColor, meta ? meta.printDirection : "top");
+      const task = client.protocol.newPrintTask(taskName, {totalPages: copies, density: Number(settings.density), labelType: nb.LabelType.WithGaps});
+      try { await task.printInit(); await task.printPage(enc, copies); await task.waitForFinished(); }
+      finally { try { await task.printEnd(); } catch(e){} }
+    }
+  };
+  client.on("disconnect", onPrinterGone);
+  return p;
+}
+
+/* Phomemo serie M (M200, M220, M221, M250, M260): raster ESC/POS via BLE, servizio 0xFF00 / caratteristica 0xFF02.
+   Comandi e tempi come nel progetto open source phomymo. */
+const PHOMEMO_MODELS = [
+  {re:/M200/i, name:"M200", bytes:76, align:"center"},
+  {re:/M220/i, name:"M220", bytes:72, align:"right"},
+  {re:/M221/i, name:"M221", bytes:72, align:"center"},
+  {re:/M250/i, name:"M250", bytes:72, align:"center"},
+  {re:/M260/i, name:"M260", bytes:72, align:"center"}
+];
+const PHOMEMO_SERVICES = [0xff00, 0xffe0, 0xae30, "49535343-fe7d-4ae5-8fa9-9fafd205e455"];
+async function connectPhomemo(){
+  needBT();
+  let device;
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{namePrefix:"M"}, {namePrefix:"Phomemo"}, {namePrefix:"Q"}],
+      optionalServices: PHOMEMO_SERVICES
+    });
+  } catch(e){ throw btGuard(e); }
+  const name = device.name || "";
+  if (/M1[12]0/i.test(name)) throw new Error(`${name}: la serie M110/M120 usa un protocollo diverso, non ancora supportato.`);
+  let model = PHOMEMO_MODELS.find(x => x.re.test(name));
+  const guessed = !model;
+  if (!model) model = PHOMEMO_MODELS[0];
+  const server = await device.gatt.connect();
+  await sleep(100);
+  let ch = null;
+  for (const uuid of PHOMEMO_SERVICES){
+    try { const svc = await server.getPrimaryService(uuid); ch = await svc.getCharacteristic(0xff02); break; } catch(e){}
+  }
+  if (!ch){ server.disconnect(); throw new Error("Stampante trovata ma senza il canale di stampa atteso: non sembra una Phomemo serie M."); }
+  let withResp = !ch.properties.writeWithoutResponse && ch.properties.write;
+  const send = async bytes => {
+    const buf = new Uint8Array(bytes).buffer;
+    if (withResp) return ch.writeValue(buf);
+    try { await ch.writeValueWithoutResponse(buf); } catch(e){ withResp = true; await ch.writeValue(buf); }
+  };
+  const heat = [60, 100, 140, 160, 200][Math.max(0, Math.min(4, Number(settings.density) - 1))];
+  const dens8 = [2, 4, 6, 7, 8][Math.max(0, Math.min(4, Number(settings.density) - 1))];
+  const p = {
+    kind: "phomemo", name: model.name + (guessed ? ` (${name || "?"})` : ""), dpi: 203,
+    maxPx: model.bytes * 8, maxMm: 75, guessed,
+    isConnected: () => device.gatt.connected,
+    disconnect: async () => device.gatt.disconnect(),
+    async print(cv, copies){
+      const raster = toRaster(cv, model.bytes, model.align);
+      const rows = cv.height;
+      for (let c = 0; c < copies; c++){
+        await send([0x1b, 0x40]); await sleep(100);                           // ESC @  inizializza
+        await send([0x1b, 0x37, 7, heat, 2]); await sleep(30);                 // ESC 7  calore
+        await send([0x1d, 0x7c, dens8]); await sleep(50);                      // GS |   densità
+        await send([0x1d, 0x76, 0x30, 0x00, model.bytes, 0x00, rows & 0xff, (rows >> 8) & 0xff]);  // GS v 0 raster
+        for (let i = 0; i < raster.length; i += 128){ await send(raster.subarray(i, i + 128)); await sleep(20); }
+        await sleep(300);
+        await send([0x1b, 0x4a, Number(settings.feed) & 0xff]);               // ESC J  avanza
+        await sleep(800);
+      }
+    }
+  };
+  device.addEventListener("gattserverdisconnected", onPrinterGone);
+  return p;
+}
+/* canvas → righe di bit (1 = nero), allineate nella larghezza della testina */
+function toRaster(cv, widthBytes, align){
+  const ctx = cv.getContext("2d"), {width: w, height: h} = cv, px = ctx.getImageData(0, 0, w, h).data;
+  const rowBytes = Math.ceil(w / 8), out = new Uint8Array(widthBytes * h);
+  const off = align === "center" ? Math.floor((widthBytes - rowBytes) / 2) : align === "right" ? widthBytes - rowBytes : 0;
+  for (let y = 0; y < h; y++) for (let bx = 0; bx < rowBytes; bx++){
+    let v = 0;
+    for (let bit = 0; bit < 8; bit++){
+      const x = bx * 8 + bit; if (x >= w) continue;
+      const i = (y * w + x) * 4;
+      if (0.299*px[i] + 0.587*px[i+1] + 0.114*px[i+2] < 128) v |= 1 << (7 - bit);
+    }
+    const pos = y * widthBytes + off + bx;
+    if (off + bx >= 0 && off + bx < widthBytes) out[pos] = v;
+  }
+  return out;
+}
+
+function onPrinterGone(){ printer = null; setPrinterUI(); toast("Stampante scollegata"); }
+function setPrinterUI(){
+  const on = !!(printer && printer.isConnected());
+  $("pDot").classList.toggle("on", on);
+  $("pBtn").textContent = on ? "Scollega" : "Collega";
+  $("pName").textContent = on ? `${printer.name} collegata` : `${settings.printer === "phomemo" ? "Phomemo" : "Niimbot"} non collegata`;
+}
+async function connect(){
+  printer = settings.printer === "phomemo" ? await connectPhomemo() : await connectNiimbot();
+  setPrinterUI(); fillSizes();
+  const z = SIZES[settings.size];
+  if (z && z.w > printer.maxMm){ settings.size = "50x30"; saveSettings(); fillSizes(); toast(`Formato non adatto a ${printer.name}: impostato 50 × 30 mm`); }
+  else if (printer.guessed) toast(`Modello non riconosciuto dal nome: uso le impostazioni M200`);
+  render();
+}
+async function printCanvas(cv, copies){
+  if (!printer || !printer.isConnected()) await connect();
+  // ridisegna alla risoluzione della stampante collegata, se è cambiata
+  await printer.print(cv, copies);
+}
+$("pBtn").addEventListener("click", async () => {
+  try {
+    if (printer && printer.isConnected()){ await printer.disconnect(); printer = null; setPrinterUI(); fillSizes(); render(); return; }
+    $("pName").textContent = "Ricerca…"; await connect(); toast(`${printer.name} collegata`);
+  } catch(e){ printer = null; setPrinterUI(); toast(e.message || "Collegamento non riuscito"); }
+});
+
+/* ---------- UI: nuova etichetta ---------- */
+const cv = $("cv");
+let draftId = null;
+
+function verdictHTML(r){
+  const big = r.end ? fmtLong(r.end) : (r.basis || "—");
+  const list = [...r.warns.map(w => `<li><b>${w}</b></li>`), ...r.notes.map(n => `<li>${n}</li>`)].join("");
+  return `<small>${r.end ? "Consumare entro" : "Attenzione"}</small><div class="big">${big}</div>${r.end ? `<small>${r.basis}</small>` : ""}${list ? `<ul>${list}</ul>` : ""}`;
+}
+const HINT = {
+  crudo:"Carne, pesce, verdure da cuocere. Il tempo parte dall'acquisto.",
+  preparato:"Piatti, salse, pesto, brodi fatti da te. Il tempo parte dalla preparazione.",
+  pronto:"Salumi, formaggi, prodotti già pronti. Il tempo parte dall'apertura.",
+  scongelato:"Crudo già scongelato: va cotto entro 24 h."
+};
+function render(){
+  const f = readForm(), r = calc(f);
+  $("verdict").className = "verdict" + (r.level === "ok" ? "" : " " + r.level);
+  $("verdict").innerHTML = verdictHTML(r);
+  $("stateHint").textContent = HINT[f.state] || "";
+  $("boxFlags").hidden = f.state !== "preparato";
+  $("boxOpen").hidden = f.state !== "pronto";
+  $("lblOpened").hidden = st.open !== "aperta";
+  $("lblBought").hidden = f.state !== "crudo";
+  $("lblPack").firstChild.textContent = f.state === "preparato" ? "Preparato il" : f.state === "scongelato" ? "Scongelato il" : "Confezionato il";
+  $("catName").textContent = (CAT[f.cat] || CAT.altro).n;
+  $("catAuto").hidden = !st.catAuto || !f.name;
+  const fz = $("segLoc").querySelector('[data-v="freezer"]');
+  fz.disabled = !!r.noFreeze || f.state === "scongelato";
+  const extra = [f.exp && "scadenza", f.manual && "data a mano", f.pack !== iso(new Date()) && "data diversa"].filter(Boolean);
+  $("moreHint").textContent = extra.length ? "· " + extra.join(", ") : "· oggi";
+  if (!draftId) draftId = newId();
+  drawLabel(cv, {...f, id: draftId, end: r.end ? iso(r.end) : null});
+  $("barWhen").innerHTML = `Entro<b>${r.end ? fmt(r.end) : "—"}</b>`;
+  $("bPrint").textContent = st.bags > 1 ? `Stampa ${st.bags}` : "Stampa";
+  $("bPrint").disabled = $("bSave").disabled = !r.end;
+  $("bagsN").textContent = st.bags;
+}
+function syncSeg(id, v){ $(id).querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.v === v)); }
+function setState(v){ st.state = v; syncSeg("segState", v); if (v === "scongelato") setLoc("frigo"); }
+function setLoc(v, user){ st.loc = v; syncSeg("segLoc", v); if (user) $("fVac").checked = !!(settings.vacBy || {})[v]; }
+function applyCat(k, auto){
+  $("fCat").value = k; st.catAuto = auto;
+  const c = CAT[k];
+  if (st.state !== "scongelato"){
+    if (c.cooked) setState("preparato");
+    else if (c.ready) setState("pronto");
+    else if (st.state !== "crudo") setState("crudo");
+  }
+  ["uova","latte","aglio","pesce"].forEach(fl => { $("fg" + fl[0].toUpperCase() + fl.slice(1)).checked = !!(c.preset && c.preset[fl]); });
+  if (c.fish) $("fgPesce").checked = true;
+  if (c.fz === 0) setLoc("frigo");
+}
+
+Object.entries(CAT).forEach(([k, c]) => { const o = document.createElement("option"); o.value = k; o.textContent = c.n; $("fCat").appendChild(o); });
+$("fCat").addEventListener("change", () => { applyCat($("fCat").value, false); render(); });
+$("fName").addEventListener("input", () => {
+  if (st.catAuto){ const g = guessCat($("fName").value); if (g && g !== $("fCat").value) applyCat(g, true); }
+  render();
+});
+$("segState").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; setState(b.dataset.v); render(); });
+$("segLoc").addEventListener("click", e => { const b = e.target.closest("button"); if (!b || b.disabled) return; setLoc(b.dataset.v, true); render(); });
+$("segOpen").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; st.open = b.dataset.v; syncSeg("segOpen", st.open); if (st.open === "chiusa") $("more").open = true; render(); });
+["fVac","fPack","fBought","fOpened","fExp","fWeight","fManualDate","fgUova","fgLatte","fgAglio","fgPesce"].forEach(id => $(id).addEventListener("input", render));
+$("fManual").addEventListener("change", () => { $("lblManual").hidden = !$("fManual").checked; render(); });
+$("bMinus").addEventListener("click", () => { st.bags = Math.max(1, st.bags - 1); render(); });
+$("bPlus").addEventListener("click", () => { st.bags = Math.min(20, st.bags + 1); render(); });
+
+function resetForm(keepPlace){
+  draftId = null;
+  ["fName","fWeight","fExp","fManualDate"].forEach(id => $(id).value = "");
+  $("fManual").checked = false; $("lblManual").hidden = true;
+  $("fPack").value = $("fBought").value = $("fOpened").value = iso(new Date());
+  st.bags = 1; st.open = "aperta"; syncSeg("segOpen", "aperta");
+  applyCat("altro", true); setState("crudo");
+  setLoc(keepPlace ? settings.lastLoc : st.loc, true);
+}
+
+function buildItem(){
+  const f = readForm(), r = calc(f);
+  if (!f.name){ $("fName").focus(); toast("Scrivi cosa stai etichettando"); return null; }
+  if (!r.end){ toast("Con questi dati non va etichettato"); return null; }
+  return {id: draftId, name: f.name, cat: f.cat, state: f.state, loc: f.loc, vac: f.vac, pack: f.pack || iso(new Date()),
+    start: f.start, open: f.open, exp: f.exp, weight: f.weight, flags: f.flags, manual: f.manual ? f.manualDate : null,
+    end: iso(r.end), basis: r.basis, qty: st.bags, bags: st.bags, created: Date.now(), done: null};
+}
+function commit(it){
+  items = items.filter(x => x.id !== it.id); items.push(it); saveItems();
+  settings.lastLoc = it.loc; settings.vacBy = {...(settings.vacBy || {}), [it.loc]: it.vac}; saveSettings();
+  resetForm(true); renderRecent(); render();
+  window.scrollTo({top:0});
+}
+$("bPrint").addEventListener("click", async () => {
+  const it = buildItem(); if (!it) return;
+  $("bPrint").disabled = true; $("bPrint").textContent = "Stampa…";
+  try {
+    if (!printer || !printer.isConnected()){ await connect(); }
+    drawLabel(cv, it);
+    await printCanvas(cv, it.bags); commit(it); toast(`Stampat${it.bags > 1 ? "e" : "a"} e salvat${it.bags > 1 ? "e" : "a"} #${it.id}`); }
+  catch(err){ toast("Stampa non riuscita: " + (err.message || err)); render(); }
+});
+$("bSave").addEventListener("click", () => { const it = buildItem(); if (it){ commit(it); toast(`Salvata #${it.id}`); } });
+
+/* Scorciatoie "Rifai": ultimi prodotti diversi */
+function renderRecent(){
+  const seen = new Set(), rec = [];
+  [...items].sort((a, b) => b.created - a.created).forEach(it => { const k = norm(it.name); if (!seen.has(k) && rec.length < 8){ seen.add(k); rec.push(it); } });
+  $("boxRecent").hidden = !rec.length;
+  $("recent").innerHTML = rec.map((it, i) => `<button type="button" data-i="${i}">${esc(it.name)}</button>`).join("");
+  $("recent").onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const it = rec[Number(b.dataset.i)];
+    resetForm(false);
+    $("fName").value = it.name; applyCat(it.cat, false);
+    setState(normState(it.state) === "scongelato" ? "crudo" : normState(it.state));
+    setLoc(it.loc === "frigo" && normState(it.state) === "scongelato" ? "freezer" : it.loc);
+    $("fVac").checked = !!it.vac; $("fWeight").value = it.weight || "";
+    if (it.flags) ["uova","latte","aglio","pesce"].forEach(fl => $("fg" + fl[0].toUpperCase() + fl.slice(1)).checked = !!it.flags[fl]);
+    st.bags = it.bags || 1;
+    render(); toast(`Compilato come l'ultima volta: ${it.name}`);
+  };
+}
+
+/* ---------- UI: inventario ---------- */
+let filter = "tutti", highlight = null;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const left = it => daysBetween(today(), parse(it.end));
+const urgent = it => !it.done && left(it) <= (it.loc === "freezer" ? 30 : 1);
+$("segFilter").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; filter = b.dataset.v; syncSeg("segFilter", filter); renderList(); });
+$("q").addEventListener("input", renderList);
+
+function pill(it){
+  if (it.done) return `<span class="pill">finito</span>`;
+  const l = left(it);
+  if (l < 0) return `<span class="pill bad">scaduto da ${giorni(-l)}</span>`;
+  if (l === 0) return `<span class="pill bad">oggi</span>`;
+  const txt = l > 60 ? mesi(Math.round(l/30)) : giorni(l);
+  return `<span class="pill${urgent(it) ? " warn" : ""}">${txt}</span>`;
+}
+function updateBadge(){
+  const n = items.filter(urgent).length;
+  $("invBadge").hidden = !n; $("invBadge").textContent = n;
+}
+function renderList(){
+  const act = items.filter(it => !it.done);
+  const n = l => act.filter(it => it.loc === l).reduce((s, it) => s + (it.qty || 1), 0);
+  $("summary").innerHTML = `<div><b>${n("freezer")}</b>buste in freezer</div><div><b>${n("frigo")}</b>in frigo</div><div class="${act.some(urgent) ? "alert" : ""}"><b>${act.filter(urgent).length}</b>da usare presto</div>`;
+  const q = norm($("q").value.trim()).replace(/^#/, "");
+  let rows = items.filter(it => {
+    if (filter === "consumati"){ if (!it.done) return false; }
+    else { if (it.done) return false; if (filter !== "tutti" && it.loc !== filter) return false; }
+    return !q || norm(it.name).includes(q) || it.id.toLowerCase() === q;
+  }).sort((a, b) => a.end.localeCompare(b.end));
+  if (!rows.length){
+    $("list").innerHTML = `<div class="empty">${items.length ? "Nessun elemento con questo filtro." : "Ancora niente in inventario. Crea la prima etichetta dalla scheda Nuova: comparirà qui, ordinata per scadenza."}</div>`;
+    return;
+  }
+  $("list").innerHTML = rows.map(it => {
+    const s = normState(it.state), qty = it.qty || 1;
+    const ops = it.done
+      ? `<button class="btn small ghost" data-op="undo" data-id="${it.id}" type="button">Ripristina</button>`
+      : [`<button class="btn small" data-op="use" data-id="${it.id}" type="button">${qty > 1 ? "Usata 1 busta" : "Finito"}</button>`,
+         it.loc === "freezer" ? `<button class="btn small ghost" data-op="thaw" data-id="${it.id}" type="button">Scongelo ${qty > 1 ? "1 busta " : ""}oggi</button>` : "",
+         s === "pronto" && it.loc === "frigo" && it.open === false ? `<button class="btn small ghost" data-op="open" data-id="${it.id}" type="button">Aperto oggi</button>` : "",
+         `<button class="btn small ghost" data-op="print" data-id="${it.id}" type="button">Ristampa</button>`].join("");
+    return `<div class="item${it.id === highlight ? " hl" : ""}" id="it-${it.id}">
+      <div class="name">${esc(it.name)}${qty > 1 ? ` · ${qty} buste` : ""}</div>${pill(it)}
+      <div class="meta">${it.loc === "freezer" ? "Freezer" : "Frigo"}${it.vac ? " · sottovuoto" : ""} · ${s} · ${esc((CAT[it.cat] || CAT.altro).n)}<br>
+        ${({scongelato:"Scong.", preparato:"Prep."})[s] || "Conf."} <b>${fmt(parse(it.thawed || it.pack))}</b> → entro <b>${fmt(parse(it.end))}</b>${it.weight ? " · " + esc(it.weight) : ""} · <b>#${it.id}</b></div>
+      <div class="ops">${ops}
+        <button class="btn small ghost" data-op="del" data-id="${it.id}" type="button">${it.pendingDel ? "Tocca di nuovo per eliminare" : "Elimina"}</button>
+      </div></div>`;
+  }).join("");
+}
+
+function recalc(it){
+  const r = calc({name: it.name, cat: it.cat, state: normState(it.state), loc: it.loc, vac: it.vac, pack: it.pack, start: it.start,
+    open: it.open, exp: it.exp, flags: it.flags, manual: !!it.manual, manualDate: it.manual});
+  if (r.end){ it.end = iso(r.end); it.basis = r.basis; }
+}
+async function reprint(it, n){
+  try {
+    if (!printer || !printer.isConnected()) await connect();
+    const c = document.createElement("canvas"); drawLabel(c, it);
+    await printCanvas(c, n || 1); toast(`Etichetta #${it.id} stampata`); }
+  catch(err){ toast("Etichetta aggiornata. Stampa non riuscita: " + (err.message || err)); }
+}
+$("list").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-op]"); if (!b) return;
+  let it = items.find(x => x.id === b.dataset.id); if (!it) return;
+  const op = b.dataset.op;
+  if (op === "use"){
+    it.qty = (it.qty || 1) - 1;
+    if (it.qty <= 0){ it.qty = 0; it.done = Date.now(); toast(`${it.name}: finito`); }
+    else toast(`${it.name}: restano ${it.qty} buste`);
+  }
+  if (op === "undo"){ it.done = null; it.qty = Math.max(1, it.qty || 0); }
+  if (op === "open"){
+    it.open = true; it.start = iso(new Date()); recalc(it); saveItems(); renderList();
+    toast(`Aperto oggi: entro ${fmt(parse(it.end))}. Ristampa l'etichetta.`);
+    if (printer && printer.isConnected()) await reprint(it);
+    return;
+  }
+  if (op === "thaw"){
+    // con più buste ne stacca una: nuova scheda e nuova etichetta per la busta scongelata
+    if ((it.qty || 1) > 1){
+      it.qty -= 1;
+      it = {...it, id: newId(), qty: 1, bags: 1, created: Date.now()};
+      items.push(it);
+    }
+    it.loc = "frigo"; it.thawed = iso(new Date());
+    it.end = iso(addDays(today(), 1)); it.basis = "24 h dallo scongelamento";
+    if (normState(it.state) === "crudo") it.state = "scongelato";
+    saveItems(); renderList();
+    const extra = it.vac && ((CAT[it.cat] || {}).fish || (it.flags && it.flags.pesce)) ? " Apri la busta prima di scongelare." : "";
+    toast(`In frigo, entro domani.${extra}`);
+    if (printer && printer.isConnected()) await reprint(it);
+    return;
+  }
+  if (op === "del"){
+    if (it.pendingDel){ items = items.filter(x => x !== it); toast("Eliminato"); }
+    else { it.pendingDel = true; setTimeout(() => { delete it.pendingDel; renderList(); }, 3000); renderList(); return; }
+  }
+  if (op === "print"){ b.disabled = true; b.textContent = "Stampa…"; await reprint(it, 1); }
+  saveItems(); renderList();
+});
+
+/* ---------- Impostazioni ---------- */
+function fillSizes(){
+  const g = printerGeom();
+  $("sSize").innerHTML = Object.entries(SIZES).filter(([k, z]) => z.w <= g.maxMm)
+    .map(([k, z]) => `<option value="${k}">${z.w} × ${z.h} mm</option>`).join("");
+  if (!SIZES[settings.size] || SIZES[settings.size].w > g.maxMm) settings.size = "50x30";
+  $("sSize").value = settings.size;
+  syncSeg("segPrinter", settings.printer);
+  $("lblFeed").hidden = $("feedHint").hidden = settings.printer !== "phomemo";
+  $("printerHint").textContent = settings.printer === "phomemo"
+    ? "Serie M: M200, M220, M221, M250, M260. Etichette fino a 75 mm di larghezza."
+    : "B1, B1 Pro, B21, B21 Pro e altri modelli supportati da NiimBlueLib. Etichette fino a 50 mm.";
+}
+$("segPrinter").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b || b.dataset.v === settings.printer) return;
+  if (printer && printer.isConnected()){ try { await printer.disconnect(); } catch(err){} printer = null; }
+  settings.printer = b.dataset.v; saveSettings(); fillSizes(); setPrinterUI(); render();
+});
+$("sFeed").value = String(settings.feed);
+$("sFeed").addEventListener("change", () => { settings.feed = Number($("sFeed").value); saveSettings(); });
+fillSizes();
+$("sDensity").value = settings.density; $("sQR").checked = settings.qr; $("sCold").checked = settings.cold;
+$("sSize").addEventListener("change", () => { settings.size = $("sSize").value; saveSettings(); render(); });
+$("sDensity").addEventListener("input", () => { settings.density = Number($("sDensity").value); saveSettings(); });
+$("sQR").addEventListener("change", () => { settings.qr = $("sQR").checked; saveSettings(); render(); });
+$("sCold").addEventListener("change", () => { settings.cold = $("sCold").checked; saveSettings(); render(); });
+$("tbl").innerHTML = `<tr><th>Categoria</th><th>Frigo</th><th>Frigo SV</th><th>Freezer</th><th>Freezer SV</th></tr>` +
+  Object.values(CAT).map(c => `<tr><td>${c.n}</td><td class="n">${c.fr} g</td><td class="n">${c.frV} g</td><td class="n">${c.fz ? c.fz + " m" : "no"}</td><td class="n">${c.fzV ? c.fzV + " m" : "no"}</td></tr>`).join("");
+$("bExport").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify({v:2, items, settings}, null, 1)], {type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `etichette-backup-${iso(new Date())}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+});
+$("fImport").addEventListener("change", async e => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data.items)) throw new Error();
+    const known = new Set(items.map(x => x.id));
+    const add = data.items.filter(x => x && x.id && !known.has(x.id));
+    items = items.concat(add); saveItems(); renderList(); renderRecent(); toast(`Importati ${add.length} elementi`);
+  } catch(err){ toast("File di backup non valido"); }
+  e.target.value = "";
+});
+
+/* ---------- Schede + link dal QR ---------- */
+function showTab(t){
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
+  ["nuova","inv","set"].forEach(k => $("tab-" + k).hidden = k !== t);
+  $("bar").hidden = t !== "nuova";
+  if (t === "inv") renderList();
+}
+document.querySelector("nav").addEventListener("click", e => { const b = e.target.closest("button"); if (b) showTab(b.dataset.tab); });
+function openFromHash(){
+  const m = location.hash.match(/i[-=]([A-Z0-9]{4})/);
+  if (!m) return;
+  highlight = m[1]; filter = "tutti"; syncSeg("segFilter", filter); $("q").value = "";
+  showTab("inv");
+  const el = $("it-" + highlight);
+  if (el) el.scrollIntoView({block:"center"}); else toast(`#${highlight} non è in questo telefono`);
+}
+window.addEventListener("hashchange", openFromHash);
+
+let tId;
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(tId); tId = setTimeout(() => t.hidden = true, 3500); }
+
+resetForm(true);
+setPrinterUI(); renderRecent(); updateBadge(); render();
+const fontsReady = (document.fonts && document.fonts.load)
+  ? Promise.all([document.fonts.load('800 40px "Barlow Condensed"'), document.fonts.load('700 20px "Barlow Condensed"'), document.fonts.load('600 16px "IBM Plex Mono"')]).catch(()=>{})
+  : Promise.resolve();
+fontsReady.then(render);
+openFromHash();
+</script>
+</body>
+</html>
