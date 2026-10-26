@@ -248,6 +248,17 @@ td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
         <option value="80">10 mm</option>
       </select></label>
       <p class="hint" id="feedHint">Se le etichette escono spostate rispetto allo spazio tra una e l'altra, cambia questo valore.</p>
+      <div class="grp" id="boxCal">
+        <span class="lbl">Allineamento (Phomemo)</span>
+        <div class="row">
+          <div class="grp"><span class="hint">Orizzontale (+ = a destra)</span>
+            <div class="stepper"><button type="button" data-cal="x" data-d="-1" aria-label="Sposta a sinistra">−</button><span id="calX">0 mm</span><button type="button" data-cal="x" data-d="1" aria-label="Sposta a destra">+</button></div></div>
+          <div class="grp"><span class="hint">Verticale (+ = in giù)</span>
+            <div class="stepper"><button type="button" data-cal="y" data-d="-1" aria-label="Sposta in su">−</button><span id="calY">0 mm</span><button type="button" data-cal="y" data-d="1" aria-label="Sposta in giù">+</button></div></div>
+        </div>
+        <button class="btn ghost" type="button" id="bCal">Stampa di prova con righello</button>
+        <p class="hint">Stampa un righello in millimetri lungo tutta la testina e il riquadro dove l'app pensa che sia l'etichetta. Se il riquadro esce spostato di 5 mm a sinistra, metti +5 in Orizzontale.</p>
+      </div>
       <label class="check"><input type="checkbox" id="sQR"> Stampa il QR (apre la scheda nell'inventario)</label>
       <label class="check"><input type="checkbox" id="sCold"> Il mio frigo sta a 4 °C o meno</label>
       <p class="hint">Se il frigo è più caldo (5–7 °C) le durate in frigo si riducono del 30%. Per il sottovuoto conviene stare sui 3 °C: un termometro da frigo costa pochi euro.</p>
@@ -360,7 +371,7 @@ const store = {
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
 };
 let items = store.get("ef.items.v1", []);
-const settings = Object.assign({size:"50x30", density:3, qr:true, cold:true, lastLoc:"freezer", vacBy:{freezer:true, frigo:false}, printer:"niimbot", feed:32, phModel:"auto", phLink:"classic"}, store.get("ef.settings.v1", {}));
+const settings = Object.assign({size:"50x30", density:3, qr:true, cold:true, lastLoc:"freezer", vacBy:{freezer:true, frigo:false}, printer:"niimbot", feed:32, phModel:"auto", phLink:"classic", offX:0, offY:0}, store.get("ef.settings.v1", {}));
 const saveItems = () => { store.set("ef.items.v1", items); updateBadge(); };
 const saveSettings = () => store.set("ef.settings.v1", settings);
 
@@ -708,8 +719,9 @@ function phomemoPrinter(model, guessed, label, send, chunk, gap, isConnected, di
     kind: "phomemo", name: model.name + (guessed ? ` (${label || "?"})` : ""), dpi: 203,
     maxPx: model.bytes * 8, maxMm: 75, guessed, isConnected, disconnect,
     async print(cv, copies){
-      const raster = toRaster(cv, model.bytes, model.align);
-      const rows = cv.height;
+      const full = cv.dataset.full === "1" ? cv : composeHead(cv, model.bytes * 8, model.align);
+      const raster = toRaster(full, model.bytes, "left");
+      const rows = full.height;
       for (let c = 0; c < copies; c++){
         await send([0x1b, 0x40]); await sleep(100);                           // ESC @  inizializza
         await send([0x1b, 0x37, 7, heat, 2]); await sleep(30);                 // ESC 7  calore
@@ -722,6 +734,16 @@ function phomemoPrinter(model, guessed, label, send, chunk, gap, isConnected, di
       }
     }
   };
+}
+/* etichetta → canvas largo quanto la testina, con allineamento del rullo e calibrazione dell'utente (8 px/mm) */
+function composeHead(cv, headPx, align){
+  const out = document.createElement("canvas"); out.width = headPx; out.height = cv.height;
+  const c = out.getContext("2d"); c.fillStyle = "#fff"; c.fillRect(0, 0, headPx, cv.height);
+  let x = align === "center" ? Math.round((headPx - cv.width) / 2) : align === "right" ? headPx - cv.width : 0;
+  x += Math.round(Number(settings.offX || 0) * 8);
+  const y = Math.round(Number(settings.offY || 0) * 8);
+  c.drawImage(cv, x, y);
+  return out;
 }
 /* canvas → righe di bit (1 = nero), allineate nella larghezza della testina */
 function toRaster(cv, widthBytes, align){
@@ -1004,7 +1026,7 @@ function fillSizes(){
   if (!SIZES[settings.size] || SIZES[settings.size].w > g.maxMm) settings.size = "50x30";
   $("sSize").value = settings.size;
   syncSeg("segPrinter", settings.printer);
-  $("lblFeed").hidden = $("feedHint").hidden = $("boxPhomemo").hidden = settings.printer !== "phomemo";
+  $("lblFeed").hidden = $("feedHint").hidden = $("boxPhomemo").hidden = $("boxCal").hidden = settings.printer !== "phomemo";
   $("printerHint").textContent = settings.printer === "phomemo"
     ? "Serie M: M200, M220, M221, M250, M260. Etichette fino a 75 mm di larghezza."
     : "B1, B1 Pro, B21, B21 Pro e altri modelli supportati da NiimBlueLib. Etichette fino a 50 mm.";
@@ -1016,6 +1038,48 @@ $("segPrinter").addEventListener("click", async e => {
 });
 $("sFeed").value = String(settings.feed);
 $("sPhModel").value = settings.phModel;
+function syncCal(){
+  const f = v => `${v > 0 ? "+" : ""}${v} mm`;
+  $("calX").textContent = f(settings.offX || 0); $("calY").textContent = f(settings.offY || 0);
+}
+syncCal();
+$("boxCal").addEventListener("click", e => {
+  const b = e.target.closest("button[data-cal]"); if (!b) return;
+  const k = b.dataset.cal === "x" ? "offX" : "offY";
+  settings[k] = Math.max(-20, Math.min(20, (settings[k] || 0) + Number(b.dataset.d) * 0.5));
+  saveSettings(); syncCal();
+});
+function calibrationCanvas(){
+  const headPx = (printer && printer.maxPx) || 608, {W, H} = labelSize();
+  const cv = document.createElement("canvas"); cv.width = headPx; cv.height = H; cv.dataset.full = "1";
+  const c = cv.getContext("2d");
+  c.fillStyle = "#fff"; c.fillRect(0, 0, headPx, H); c.fillStyle = "#000"; c.textBaseline = "top";
+  c.font = '700 22px "IBM Plex Mono",monospace';
+  for (let mm = 0; mm * 8 <= headPx; mm++){
+    const x = mm * 8, len = mm % 10 === 0 ? 70 : mm % 5 === 0 ? 45 : 22;
+    c.fillRect(x, H - len, mm % 10 === 0 ? 3 : 2, len);
+    if (mm % 10 === 0 && mm > 0) c.fillText(String(mm), x - (mm >= 10 ? 13 : 6), H - len - 26);
+  }
+  // riquadro dove l'app disegna l'etichetta, con le stesse correzioni della stampa vera
+  const align = "center";
+  let x0 = Math.round((headPx - W) / 2) + Math.round(Number(settings.offX || 0) * 8);
+  const y0 = Math.round(Number(settings.offY || 0) * 8);
+  c.lineWidth = 4; c.strokeRect(x0 + 2, y0 + 2, W - 4, Math.max(40, H - 108));
+  c.font = '800 34px "Barlow Condensed",sans-serif';
+  c.fillText("ETICHETTA", x0 + 14, y0 + 12);
+  c.font = '600 20px "IBM Plex Mono",monospace';
+  c.fillText(`${settings.size} X${settings.offX || 0} Y${settings.offY || 0}`, x0 + 14, y0 + 52);
+  return cv;
+}
+$("bCal").addEventListener("click", async () => {
+  if (settings.printer !== "phomemo"){ toast("La stampa di prova serve per le Phomemo"); return; }
+  try {
+    if (!printer || !printer.isConnected()) await connect();
+    $("bCal").disabled = true; $("bCal").textContent = "Stampa…";
+    await printer.print(calibrationCanvas(), 1); toast("Prova stampata");
+  } catch(e){ toast("Stampa non riuscita: " + (e.message || e)); }
+  finally { $("bCal").disabled = false; $("bCal").textContent = "Stampa di prova con righello"; }
+});
 function syncLink(){
   syncSeg("segLink", settings.phLink);
   const c = settings.phLink === "classic";
