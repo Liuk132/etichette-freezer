@@ -229,7 +229,8 @@ td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
         <p class="hint" id="linkHint"></p>
         <label class="f">Modello Phomemo<select id="sPhModel">
           <option value="auto">Automatico (dal nome Bluetooth)</option>
-          <option value="M200">M200</option>
+          <option value="M200R">M200 – rullo a destra (nome «Q…»)</option>
+          <option value="M200">M200 – rullo centrato</option>
           <option value="M220">M220</option>
           <option value="M221">M221</option>
           <option value="M250">M250</option>
@@ -371,7 +372,7 @@ const store = {
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
 };
 let items = store.get("ef.items.v1", []);
-const settings = Object.assign({size:"50x30", density:3, qr:true, cold:true, lastLoc:"freezer", vacBy:{freezer:true, frigo:false}, printer:"niimbot", feed:32, phModel:"auto", phLink:"classic", offX:0, offY:0}, store.get("ef.settings.v1", {}));
+const settings = Object.assign({size:"50x30", density:3, qr:true, cold:true, lastLoc:"freezer", vacBy:{freezer:true, frigo:false}, printer:"niimbot", feed:32, phModel:"M200R", phLink:"classic", offX:0, offY:0}, store.get("ef.settings.v1", {}));
 const saveItems = () => { store.set("ef.items.v1", items); updateBadge(); };
 const saveSettings = () => store.set("ef.settings.v1", settings);
 
@@ -480,11 +481,11 @@ function calc(f){
 /* Geometria: pixel per mm e larghezza massima dipendono dalla stampante collegata (o dal tipo scelto) */
 const SIZES = {
   "50x30":{w:50,h:30}, "40x30":{w:40,h:30}, "50x40":{w:50,h:40}, "50x50":{w:50,h:50},
-  "40x60":{w:40,h:60}, "60x40":{w:60,h:40}, "70x50":{w:70,h:50}, "75x50":{w:75,h:50}
+  "40x60":{w:40,h:60}, "60x40":{w:60,h:40}, "70x50":{w:70,h:50}
 };
 function printerGeom(){
   if (printer) return {dpm: printer.dpi / 25.4, maxPx: printer.maxPx, maxMm: printer.maxMm};
-  return settings.printer === "phomemo" ? {dpm: 8, maxPx: 608, maxMm: 75} : {dpm: 8, maxPx: 384, maxMm: 50};
+  return settings.printer === "phomemo" ? {dpm: 8, maxPx: 576, maxMm: 72} : {dpm: 8, maxPx: 384, maxMm: 50};
 }
 function labelSize(){
   const z = SIZES[settings.size] || SIZES["50x30"], g = printerGeom();
@@ -646,6 +647,7 @@ async function connectNiimbot(){
    Comandi e tempi come nel progetto open source phomymo. */
 const PHOMEMO_MODELS = [
   {re:/M200/i, name:"M200", bytes:76, align:"center"},
+  {re:/^$/, id:"M200R", name:"M200", bytes:72, align:"right"},
   {re:/M220/i, name:"M220", bytes:72, align:"right"},
   {re:/M221/i, name:"M221", bytes:72, align:"center"},
   {re:/M250/i, name:"M250", bytes:72, align:"center"},
@@ -661,7 +663,7 @@ async function connectPhomemo(all){
       : {filters: [{namePrefix:"M"}, {namePrefix:"Phomemo"}, {namePrefix:"Q"}, {namePrefix:"P"}, {namePrefix:"T"}, {namePrefix:"Mr.in"}], optionalServices: PHOMEMO_SERVICES});
   } catch(e){ throw btGuard(e); }
   const name = device.name || "";
-  let model = settings.phModel !== "auto" ? PHOMEMO_MODELS.find(x => x.name === settings.phModel) : null;
+  let model = settings.phModel !== "auto" ? PHOMEMO_MODELS.find(x => (x.id || x.name) === settings.phModel) : null;
   if (!model && /M1[12]0/i.test(name)) throw new Error(`${name}: la serie M110/M120 usa un protocollo diverso, non ancora supportato.`);
   if (!model) model = PHOMEMO_MODELS.find(x => x.re.test(name));
   const guessed = !model;
@@ -706,7 +708,7 @@ async function connectPhomemoSerial(all){
     try { await writer.write(new Uint8Array(bytes)); }
     catch(e){ open = false; onPrinterGone(); throw new Error("Collegamento con la stampante perso: ricollegala."); }
   };
-  const model = PHOMEMO_MODELS.find(x => x.name === settings.phModel) || PHOMEMO_MODELS[0];
+  const model = PHOMEMO_MODELS.find(x => (x.id || x.name) === settings.phModel) || PHOMEMO_MODELS.find(x => x.id === "M200R");
   return phomemoPrinter(model, settings.phModel === "auto", "Bluetooth classico", send, 512, 15, () => open,
     async () => { open = false; try { writer.releaseLock(); } catch(e){} try { await port.close(); } catch(e){} });
 }
@@ -717,7 +719,7 @@ function phomemoPrinter(model, guessed, label, send, chunk, gap, isConnected, di
   const dens8 = [2, 4, 6, 7, 8][Math.max(0, Math.min(4, Number(settings.density) - 1))];
   return {
     kind: "phomemo", name: model.name + (guessed ? ` (${label || "?"})` : ""), dpi: 203,
-    maxPx: model.bytes * 8, maxMm: 75, guessed, isConnected, disconnect,
+    maxPx: model.bytes * 8, maxMm: 72, align: model.align, guessed, isConnected, disconnect,
     async print(cv, copies){
       const full = cv.dataset.full === "1" ? cv : composeHead(cv, model.bytes * 8, model.align);
       const raster = toRaster(full, model.bytes, "left");
@@ -1061,8 +1063,8 @@ function calibrationCanvas(){
     if (mm % 10 === 0 && mm > 0) c.fillText(String(mm), x - (mm >= 10 ? 13 : 6), H - len - 26);
   }
   // riquadro dove l'app disegna l'etichetta, con le stesse correzioni della stampa vera
-  const align = "center";
-  let x0 = Math.round((headPx - W) / 2) + Math.round(Number(settings.offX || 0) * 8);
+  const align = (printer && printer.align) || "center";
+  let x0 = (align === "right" ? headPx - W : align === "center" ? Math.round((headPx - W) / 2) : 0) + Math.round(Number(settings.offX || 0) * 8);
   const y0 = Math.round(Number(settings.offY || 0) * 8);
   c.lineWidth = 4; c.strokeRect(x0 + 2, y0 + 2, W - 4, Math.max(40, H - 108));
   c.font = '800 34px "Barlow Condensed",sans-serif';
