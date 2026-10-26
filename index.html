@@ -221,6 +221,12 @@ td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
       </div>
       <p class="hint" id="printerHint"></p>
       <div class="grp" id="boxPhomemo">
+        <span class="lbl">Tipo di Bluetooth</span>
+        <div class="seg" id="segLink">
+          <button type="button" data-v="classic">Classico (nome «Q…»)</button>
+          <button type="button" data-v="ble">BLE</button>
+        </div>
+        <p class="hint" id="linkHint"></p>
         <label class="f">Modello Phomemo<select id="sPhModel">
           <option value="auto">Automatico (dal nome Bluetooth)</option>
           <option value="M200">M200</option>
@@ -230,7 +236,7 @@ td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
           <option value="M260">M260</option>
         </select></label>
         <button class="btn ghost" type="button" id="bScanAll">Non la trovi? Cerca tra tutti i dispositivi</button>
-        <p class="hint">Mostra ogni dispositivo Bluetooth vicino: scegli quello che compare solo quando la stampante è accesa. Prima chiudi l'app Phomemo, se è collegata alla stampante.</p>
+        <p class="hint" id="scanHint"></p>
       </div>
       <label class="f">Formato rotolo<select id="sSize"></select></label>
       <label class="f">Densità di stampa (1 chiara – 5 scura)<input type="range" id="sDensity" min="1" max="5" step="1"></label>
@@ -354,7 +360,7 @@ const store = {
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
 };
 let items = store.get("ef.items.v1", []);
-const settings = Object.assign({size:"50x30", density:3, qr:true, cold:true, lastLoc:"freezer", vacBy:{freezer:true, frigo:false}, printer:"niimbot", feed:32, phModel:"auto"}, store.get("ef.settings.v1", {}));
+const settings = Object.assign({size:"50x30", density:3, qr:true, cold:true, lastLoc:"freezer", vacBy:{freezer:true, frigo:false}, printer:"niimbot", feed:32, phModel:"auto", phLink:"classic"}, store.get("ef.settings.v1", {}));
 const saveItems = () => { store.set("ef.items.v1", items); updateBadge(); };
 const saveSettings = () => store.set("ef.settings.v1", settings);
 
@@ -662,13 +668,45 @@ async function connectPhomemo(all){
     if (withResp) return ch.writeValue(buf);
     try { await ch.writeValueWithoutResponse(buf); } catch(e){ withResp = true; await ch.writeValue(buf); }
   };
+  const p = phomemoPrinter(model, guessed, name, send, 128, 20, () => device.gatt.connected, async () => device.gatt.disconnect());
+  device.addEventListener("gattserverdisconnected", onPrinterGone);
+  return p;
+}
+
+/* Phomemo con Bluetooth classico (SPP): Web Serial su Chrome per Android 137+. La stampante va prima associata in Android. */
+const SPP_UUID = "00001101-0000-1000-8000-00805f9b34fb";
+const PHOMEMO_RFCOMM = "e5b152ed-6b46-09e9-4678-665e9a972cbc";
+async function connectPhomemoSerial(all){
+  if (!("serial" in navigator)) throw new Error("Chrome non supporta ancora il Bluetooth classico su questo telefono: aggiorna Chrome dal Play Store (serve la versione 138 o successiva).");
+  let port;
+  try {
+    port = await navigator.serial.requestPort(all
+      ? {allowedBluetoothServiceClassIds: [PHOMEMO_RFCOMM]}
+      : {allowedBluetoothServiceClassIds: [PHOMEMO_RFCOMM], filters: [{bluetoothServiceClassId: SPP_UUID}, {bluetoothServiceClassId: PHOMEMO_RFCOMM}]});
+  } catch(e){
+    if (e && e.name === "NotFoundError") throw new Error("Nessuna stampante scelta. Se la lista era vuota, associa prima la stampante (nome «Q…») nelle impostazioni Bluetooth di Android.");
+    throw btGuard(e);
+  }
+  try { await port.open({baudRate: 115200}); }
+  catch(e){ throw new Error("Non riesco ad aprire il collegamento con la stampante. Chiudi Print Master, spegni e riaccendi la stampante e riprova. (" + (e.message || e) + ")"); }
+  const writer = port.writable.getWriter();
+  let open = true;
+  const send = async bytes => {
+    try { await writer.write(new Uint8Array(bytes)); }
+    catch(e){ open = false; onPrinterGone(); throw new Error("Collegamento con la stampante perso: ricollegala."); }
+  };
+  const model = PHOMEMO_MODELS.find(x => x.name === settings.phModel) || PHOMEMO_MODELS[0];
+  return phomemoPrinter(model, settings.phModel === "auto", "Bluetooth classico", send, 512, 15, () => open,
+    async () => { open = false; try { writer.releaseLock(); } catch(e){} try { await port.close(); } catch(e){} });
+}
+
+/* Stampante Phomemo serie M: stessi comandi ESC/POS su BLE o seriale */
+function phomemoPrinter(model, guessed, label, send, chunk, gap, isConnected, disconnect){
   const heat = [60, 100, 140, 160, 200][Math.max(0, Math.min(4, Number(settings.density) - 1))];
   const dens8 = [2, 4, 6, 7, 8][Math.max(0, Math.min(4, Number(settings.density) - 1))];
-  const p = {
-    kind: "phomemo", name: model.name + (guessed ? ` (${name || "?"})` : ""), dpi: 203,
-    maxPx: model.bytes * 8, maxMm: 75, guessed,
-    isConnected: () => device.gatt.connected,
-    disconnect: async () => device.gatt.disconnect(),
+  return {
+    kind: "phomemo", name: model.name + (guessed ? ` (${label || "?"})` : ""), dpi: 203,
+    maxPx: model.bytes * 8, maxMm: 75, guessed, isConnected, disconnect,
     async print(cv, copies){
       const raster = toRaster(cv, model.bytes, model.align);
       const rows = cv.height;
@@ -677,15 +715,13 @@ async function connectPhomemo(all){
         await send([0x1b, 0x37, 7, heat, 2]); await sleep(30);                 // ESC 7  calore
         await send([0x1d, 0x7c, dens8]); await sleep(50);                      // GS |   densità
         await send([0x1d, 0x76, 0x30, 0x00, model.bytes, 0x00, rows & 0xff, (rows >> 8) & 0xff]);  // GS v 0 raster
-        for (let i = 0; i < raster.length; i += 128){ await send(raster.subarray(i, i + 128)); await sleep(20); }
+        for (let i = 0; i < raster.length; i += chunk){ await send(raster.subarray(i, i + chunk)); await sleep(gap); }
         await sleep(300);
         await send([0x1b, 0x4a, Number(settings.feed) & 0xff]);               // ESC J  avanza
         await sleep(800);
       }
     }
   };
-  device.addEventListener("gattserverdisconnected", onPrinterGone);
-  return p;
 }
 /* canvas → righe di bit (1 = nero), allineate nella larghezza della testina */
 function toRaster(cv, widthBytes, align){
@@ -713,11 +749,12 @@ function setPrinterUI(){
   $("pName").textContent = on ? `${printer.name} collegata` : `${settings.printer === "phomemo" ? "Phomemo" : "Niimbot"} non collegata`;
 }
 async function connect(all){
-  printer = settings.printer === "phomemo" ? await connectPhomemo(all) : await connectNiimbot();
+  printer = settings.printer !== "phomemo" ? await connectNiimbot()
+    : settings.phLink === "classic" ? await connectPhomemoSerial(all) : await connectPhomemo(all);
   setPrinterUI(); fillSizes();
   const z = SIZES[settings.size];
   if (z && z.w > printer.maxMm){ settings.size = "50x30"; saveSettings(); fillSizes(); toast(`Formato non adatto a ${printer.name}: impostato 50 × 30 mm`); }
-  else if (printer.guessed) toast(`Collegata «${printer.name}». Modello non riconosciuto: uso le impostazioni M200 (puoi cambiarlo in Impostazioni).`);
+  else if (printer.guessed && settings.phLink !== "classic") toast(`Collegata «${printer.name}». Modello non riconosciuto: uso le impostazioni M200 (puoi cambiarlo in Impostazioni).`);
   render();
 }
 async function printCanvas(cv, copies){
@@ -979,6 +1016,23 @@ $("segPrinter").addEventListener("click", async e => {
 });
 $("sFeed").value = String(settings.feed);
 $("sPhModel").value = settings.phModel;
+function syncLink(){
+  syncSeg("segLink", settings.phLink);
+  const c = settings.phLink === "classic";
+  $("linkHint").textContent = c
+    ? "Per le stampanti che compaiono con un nome tipo «Q006…». Prima associala una volta in Impostazioni Android → Bluetooth → Associa nuovo dispositivo. Serve Chrome 138 o successivo."
+    : "Per i modelli che compaiono col nome del modello (M200, M220…). Non serve associarla in Android.";
+  $("bScanAll").textContent = c ? "Non la trovi? Mostra tutte le porte seriali" : "Non la trovi? Cerca tra tutti i dispositivi";
+  $("scanHint").textContent = c
+    ? "Mostra tutte le stampanti associate al telefono. Se la lista è vuota, la stampante non è ancora associata in Android."
+    : "Mostra ogni dispositivo Bluetooth vicino: scegli quello che compare solo quando la stampante è accesa. Prima chiudi Print Master, se è collegata alla stampante.";
+}
+syncLink();
+$("segLink").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b || b.dataset.v === settings.phLink) return;
+  if (printer && printer.isConnected()){ try { await printer.disconnect(); } catch(err){} printer = null; setPrinterUI(); }
+  settings.phLink = b.dataset.v; saveSettings(); syncLink();
+});
 $("sPhModel").addEventListener("change", () => { settings.phModel = $("sPhModel").value; saveSettings(); });
 $("bScanAll").addEventListener("click", async () => {
   try {
