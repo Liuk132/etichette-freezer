@@ -66,6 +66,16 @@ input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visi
 .hint{font-size:13px;color:var(--muted);margin:0}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
 .chips button{flex:none;border:1px dashed var(--accent);background:transparent;color:var(--accent);font:600 13px var(--f-body);padding:7px 11px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.scanbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.scanbtn svg{width:20px;height:20px;flex:none}
+.scanout{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:14px;background:var(--bg)}
+.scanout .st{color:var(--muted);font-size:13px}
+.scanout ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.scanout li{display:flex;gap:8px;align-items:baseline}
+.scanout li b{font-weight:600}
+.scanout .ok{color:var(--ok);font-weight:700}
+.scanout .no{color:var(--muted)}
+.scanout .src{font-size:12px;color:var(--muted)}
 .catline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 .catline b{color:var(--ink);font-weight:600}
 .auto{font:600 11px var(--f-mono);color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 5px}
@@ -134,6 +144,11 @@ td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
   <!-- NUOVA ETICHETTA -->
   <section class="tab" id="tab-nuova">
     <form class="card" id="form" autocomplete="off">
+      <div class="grp" id="boxScan">
+        <button class="btn ghost scanbtn" type="button" id="bScan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Compila da foto del prodotto</button>
+        <input type="file" id="fPhoto" accept="image/*" hidden>
+        <div class="scanout" id="scanOut" hidden></div>
+      </div>
       <div class="grp" id="boxRecent" hidden><span class="lbl">Rifai</span><div class="chips" id="recent"></div></div>
 
       <div class="grp">
@@ -402,7 +417,7 @@ function readForm(){
     pack: $("fPack").value, exp: $("fExp").value, weight: $("fWeight").value.trim(),
     start: pronto ? (st.open === "aperta" ? $("fOpened").value : "") : $("fBought").value,
     open: pronto ? st.open === "aperta" : null,
-    manual: $("fManual").checked, manualDate: $("fManualDate").value,
+    manual: $("fManual").checked, manualDate: $("fManualDate").value, openDays: st.openDays || null,
     flags: st.state === "preparato" ? {uova: $("fgUova").checked, latte: $("fgLatte").checked, aglio: $("fgAglio").checked, pesce: $("fgPesce").checked} : null
   };
 }
@@ -455,7 +470,11 @@ function calc(f){
     if (state === "preparato"){ from = pack; basis = `${giorni(fridgeDays)} dalla preparazione`; }
     else if (state === "scongelato"){ from = pack; fridgeDays = 1; basis = "24 h dallo scongelamento"; notes.push("Il crudo scongelato va cotto entro 24 h e non si ricongela."); }
     else if (state === "pronto"){
-      if (f.open){ from = start || today(); basis = `${giorni(fridgeDays)} dall'apertura`; }
+      if (f.open){
+        from = start || today();
+        if (f.openDays){ fridgeDays = f.openDays; basis = `${giorni(fridgeDays)} dall'apertura (indicato in etichetta)`; }
+        else basis = `${giorni(fridgeDays)} dall'apertura`;
+      }
       else if (exp){ end = exp; basis = "confezione chiusa: vale la scadenza stampata"; notes.push("Quando la apri, tocca «Aperto oggi» nell'inventario: la data si aggiorna."); }
       else return {level:"warn", end:null, basis:"Manca la scadenza", notes, warns:["Per una confezione chiusa inserisci la scadenza stampata (in «Date e scadenze»)."]};
     } else { from = start || pack; basis = `${giorni(fridgeDays)} dall'acquisto`; }
@@ -867,6 +886,7 @@ function resetForm(keepPlace){
   $("fManual").checked = false; $("lblManual").hidden = true;
   $("fPack").value = $("fBought").value = $("fOpened").value = iso(new Date());
   st.bags = 1; st.open = "aperta"; syncSeg("segOpen", "aperta");
+  st.openDays = null; st.code = null; st.scan = null; $("scanOut").hidden = true; $("scanOut").innerHTML = "";
   applyCat("altro", true); setState("crudo");
   setLoc(keepPlace ? settings.lastLoc : st.loc, true);
 }
@@ -876,7 +896,7 @@ function buildItem(){
   if (!f.name){ $("fName").focus(); toast("Scrivi cosa stai etichettando"); return null; }
   if (!r.end){ toast("Con questi dati non va etichettato"); return null; }
   return {id: draftId, name: f.name, cat: f.cat, state: f.state, loc: f.loc, vac: f.vac, pack: f.pack || iso(new Date()),
-    start: f.start, open: f.open, exp: f.exp, weight: f.weight, flags: f.flags, manual: f.manual ? f.manualDate : null,
+    start: f.start, open: f.open, exp: f.exp, weight: f.weight, flags: f.flags, manual: f.manual ? f.manualDate : null, openDays: f.openDays, code: st.code || null,
     end: iso(r.end), basis: r.basis, qty: st.bags, bags: st.bags, created: Date.now(), done: null};
 }
 function commit(it){
@@ -895,6 +915,242 @@ $("bPrint").addEventListener("click", async () => {
   catch(err){ toast("Stampa non riuscita: " + (err.message || err)); render(); }
 });
 $("bSave").addEventListener("click", () => { const it = buildItem(); if (it){ commit(it); toast(`Salvata #${it.id}`); } });
+
+/* ---------- Compila da foto: codice a barre (Open Food Facts) + testo della confezione (OCR) ---------- */
+/* Estrae da testo OCR di una confezione: scadenza, tipo di data, giorni dopo l'apertura, peso */
+const MESI = {GEN:1,JAN:1,FEB:2,MAR:3,APR:4,MAG:5,MAY:5,GIU:6,JUN:6,LUG:7,JUL:7,AGO:8,AUG:8,SET:9,SEP:9,OTT:10,OCT:10,NOV:11,DIC:12,DEC:12};
+function parseLabelText(raw, now = new Date()){
+  // normalizza: maiuscolo, niente accenti, spazi singoli
+  let t = raw.toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[ \t]+/g, " ");
+  // errori tipici dell'OCR dentro i numeri: O→0, I/L/|→1, S→5, B→8 (solo tra cifre o separatori di data)
+  t = t.replace(/(?<=[\d./\-])[OQD](?=[\d./\-])|(?<=\d)[OQ]|[OQ](?=\d)/g, "0")
+       .replace(/(?<=[\d./\-])[IL|](?=[\d./\-])/g, "1")
+       .replace(/(?<=[\d./\-])S(?=[\d./\-])/g, "5")
+       .replace(/(?<=[\d./\-])B(?=[\d./\-])/g, "8");
+  const flat = t.replace(/\n/g, " ");
+  const year = y => { y = Number(y); return y < 100 ? 2000 + y : y; };
+  const valid = (d, m, y) => m >= 1 && m <= 12 && d >= 1 && d <= new Date(y, m, 0).getDate();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const lo = new Date(today.getTime() - 120 * 864e5), hi = new Date(today.getTime() + 4 * 365 * 864e5);
+  const cands = [];
+  const push = (idx, len, d, m, y, monthOnly) => {
+    y = year(y); if (!valid(d, m, y)) return;
+    const dt = new Date(y, m - 1, d);
+    if (dt < lo || dt > hi) return;
+    cands.push({idx, len, date: dt, monthOnly});
+  };
+  let r;
+  const reNum = /(?<!\d)(\d{1,2}) ?[./\-] ?(\d{1,2}) ?[./\-] ?(\d{4}|\d{2})(?!\d)/g;
+  while ((r = reNum.exec(flat))) push(r.index, r[0].length, +r[1], +r[2], r[3], false);
+  const reTxt = /(?<!\d)(\d{1,2}) ?[./\-]? ?(GEN|FEB|MAR|APR|MAG|GIU|LUG|AGO|SET|OTT|NOV|DIC|JAN|MAY|JUN|JUL|AUG|SEP|OCT|DEC)[A-Z]*\.? ?[./\-]? ?(\d{4}|\d{2})(?!\d)/g;
+  while ((r = reTxt.exec(flat))) push(r.index, r[0].length, +r[1], MESI[r[2]], r[3], false);
+  // solo mese/anno (tipico del "preferibilmente entro fine"): ultimo giorno del mese
+  const reMY = /(?<![\d./\-])(\d{1,2}) ?[./\-] ?(20\d{2})(?![\d./\-])/g;
+  while ((r = reMY.exec(flat))) { const m = +r[1], y = +r[2]; if (m >= 1 && m <= 12) push(r.index, r[0].length, new Date(y, m, 0).getDate(), m, y, true); }
+  const reMYt = /(?<![\d])(GEN|FEB|MAR|APR|MAG|GIU|LUG|AGO|SET|OTT|NOV|DIC|JAN|MAY|JUN|JUL|AUG|SEP|OCT|DEC)[A-Z]*\.? ?[./\-]? ?(20\d{2})(?!\d)/g;
+  while ((r = reMYt.exec(flat))) { const m = MESI[r[1]], y = +r[2]; if (!cands.some(c => c.idx <= r.index && c.idx + c.len >= r.index + r[0].length)) push(r.index, r[0].length, new Date(y, m, 0).getDate(), m, y, true); }
+
+  const USE = /(DA CONSUMAR\w* ENTRO|CONSUMARE ENTRO|CONSUMAR\w* ENTRO|SCAD\w*|USE BY|EXP\w*|VERBRAUCHEN BIS|A CONSOMMER JUSQU)/g;
+  const BEST = /(PREFERIBILMENTE|PREF\.|TMC|T\.M\.C|BEST BEFORE|MINDESTENS HALTBAR|A CONSOMMER DE PREF|ENTRO FINE)/g;
+  const PACK = /(CONFEZ\w*|DATA DI CONF\w*|PRODOTTO IL|PROD\.|DATA DI PROD\w*|IMBALL\w*|PACKED|CONGELAT\w* IL|DATA DI CONGEL\w*)/g;
+  const near = (re, idx, span = 70) => { re.lastIndex = 0; let m, best = null; while ((m = re.exec(flat))) { const end = m.index + m[0].length; if (end <= idx + 2 && idx - end <= span) best = {kw: m[0], dist: idx - end}; } return best; };
+  for (const c of cands){
+    const u = near(USE, c.idx), b = near(BEST, c.idx), p = near(PACK, c.idx, 40);
+    c.kind = b && (!u || b.dist <= u.dist + 25) ? "best" : u ? "use" : null;
+    c.pack = !!p && (!c.kind || p.dist < Math.min(u ? u.dist : 999, b ? b.dist : 999));
+  }
+  const good = cands.filter(c => !c.pack);
+  let pick = good.filter(c => c.kind).sort((a, b) => (a.kind === "use" ? 0 : 1) - (b.kind === "use" ? 0 : 1) || b.date - a.date)[0];
+  if (!pick) pick = good.filter(c => c.date >= today).sort((a, b) => b.date - a.date)[0];
+
+  // giorni dopo l'apertura
+  let openDays = null;
+  const reOpen = /(UNA VOLTA APERT\w*|DOPO L.? ?APERTURA|DOPO APERTURA|APERT\w*|ONCE OPENED|NACH DEM OFFNEN)[^0-9]{0,60}?(\d{1,2}) ?(GIORNI|GIORNO|GG|DAYS|TAGE)/;
+  if ((r = flat.match(reOpen))) { const n = +r[2]; if (n >= 1 && n <= 60) openDays = n; }
+
+  // peso / quantità: preferisce quello vicino a "PESO NETTO", "NETTO", "E"
+  let weight = null;
+  const reW = /(?<![\d,.])(\d{1,4}(?:[.,]\d{1,3})?) ?(KG|GR|G|ML|CL|L)(?![A-Z0-9])/g;
+  const ws = [];
+  while ((r = reW.exec(flat))) {
+    if (cands.some(c => r.index < c.idx + c.len && r.index + r[0].length > c.idx)) continue;   // dentro una data
+    if (r[2] === "L" && /^[.:]? ?\d/.test(flat.slice(r.index + r[0].length, r.index + r[0].length + 3))) continue;  // "L.24" = lotto
+    const before = flat.slice(Math.max(0, r.index - 25), r.index);
+    const per = /PER|X ?$|OGNI|100 ?$/.test(flat.slice(Math.max(0, r.index - 6), r.index)) || /^ ?\/|^ ?(DI|PER)\b/.test(flat.slice(r.index + r[0].length, r.index + r[0].length + 5));
+    const score = (/PESO|NETTO|NET\b|NETTOGEWICHT|POIDS|\bE ?$/.test(before) ? 2 : 0) - (per ? 3 : 0) - (/^100$/.test(r[1]) && /G|ML/.test(r[2]) ? 2 : 0);
+    ws.push({txt: `${r[1].replace(".", ",")} ${r[2] === "GR" ? "g" : r[2].toLowerCase()}`, score, idx: r.index});
+  }
+  // unità prima del numero: "PESO NETTO KG 0,612"
+  const reW2 = /(PESO NETTO|PESO|NETTO) ?:? ?(KG|G|GR) ?(\d{1,4}(?:[.,]\d{1,3})?)(?![\d])/g;
+  while ((r = reW2.exec(flat))) ws.push({txt: `${r[3].replace(".", ",")} ${r[2] === "GR" ? "g" : r[2].toLowerCase()}`, score: 3, idx: r.index});
+  if (ws.length) weight = ws.sort((a, b) => b.score - a.score || a.idx - b.idx)[0];
+  if (weight && weight.score < 0) weight = null;
+
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return {
+    exp: pick ? iso(pick.date) : null,
+    expKind: pick ? (pick.kind || (pick.monthOnly ? "best" : null)) : null,
+    monthOnly: pick ? pick.monthOnly : false,
+    openDays,
+    weight: weight ? weight.txt : null,
+    dates: cands.length
+  };
+}
+
+const OCR = {
+  lib: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js",
+  workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+  corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1",
+  langPath: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/ita/4.0.0_best_int"
+};
+let ocrWorker = null, ocrBusy = false, ocrLog = () => {};
+function loadScript(src){
+  return new Promise((ok, ko) => { const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = () => ko(new Error("Non riesco a scaricare il lettore di testo: serve internet.")); document.head.appendChild(el); });
+}
+async function getOcr(){
+  if (!window.Tesseract) await loadScript(OCR.lib);
+  if (!ocrWorker){
+    ocrWorker = await Tesseract.createWorker("ita", 1, {workerPath: OCR.workerPath, corePath: OCR.corePath, langPath: OCR.langPath, logger: m => ocrLog(m)});
+    await ocrWorker.setParameters({tessedit_pageseg_mode: "3"});   // impaginazione automatica: legge anche i titoli grandi
+  }
+  return ocrWorker;
+}
+async function readBarcode(bitmap){
+  if (!("BarcodeDetector" in window)) return null;
+  try {
+    const sup = await BarcodeDetector.getSupportedFormats();
+    const formats = ["ean_13", "ean_8", "upc_a", "upc_e"].filter(f => sup.includes(f));
+    if (!formats.length) return null;
+    const res = await new BarcodeDetector({formats}).detect(bitmap);
+    return res.length ? res[0].rawValue : null;
+  } catch(e){ return null; }
+}
+async function lookupOFF(code){
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
+  try {
+    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_it,generic_name_it,brands,quantity,categories_tags&lc=it`, {signal: ctl.signal});
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j && j.status === 1 && j.product ? j.product : null;
+  } catch(e){ return null; } finally { clearTimeout(t); }
+}
+const OFF_RULES = [
+  [/pesto/, "pesto"], [/mayonnaise|maionese|aioli/, "maionese"], [/bechamel|besciamella/, "besciamella"],
+  [/bolognese|ragu|meat-based-sauce/, "ragu"], [/tomato-sauce|pasta-sauce|passata|sugo|pomodoro/, "sugoV"],
+  [/ketchup|chutney|barbecue-sauce/, "acida"], [/soup|broth|brodo|minestr|vellutat/, "brodo"],
+  [/mortadella|cooked-ham|prosciutto-cotto|frankfurter|wurstel|hot-dog/, "salumiC"],
+  [/dry-cured-ham|prosciutto-crudo|salami|salame|bresaola|speck|coppa|culatello|cured-meat|charcuter/, "salumiS"],
+  [/bacon|pancetta|guanciale|lardo/, "pancetta"],
+  [/mozzarella|ricotta|burrata|stracchino|fresh-cheese|cream-cheese|mascarpone|crescenza|squacquerone|robiola/, "formF"],
+  [/cheese|formagg|parmigiano|grana|pecorino/, "formS"],
+  [/minced|ground-meat|hamburger|burger|macinat/, "macinato"], [/sausage|salsicc|salamella/, "salsiccia"],
+  [/chicken|poultr|turkey|pollo|tacchino|duck|anatra/, "pollame"],
+  [/salmon|tuna|mackerel|sardine|anchov|trout|swordfish|salmone|tonno|sgombro|alici/, "pesceG"],
+  [/shrimp|prawn|mussel|clam|squid|octopus|seafood|crustacean|mollus|gamber|cozze|vongole|calamar/, "mare"],
+  [/fish|merluzzo|baccala|hake|sea-bream|orata|branzino|platessa|nasello/, "pesceM"],
+  [/beef|veal|manzo|vitello|bovin/, "manzo"], [/pork|lamb|rabbit|maiale|suino|agnello|coniglio/, "maiale"],
+  [/fresh-pasta|filled-pasta|stuffed-pasta|gnocchi|tortellini|ravioli|pasta-fresca/, "pastaF"],
+  [/bread|pizza|cake|pastr|brioche|croissant|biscuit|focaccia/, "pane"],
+  [/frozen-vegetable|spinach|spinaci|green-bean|fagiolini|peas|piselli|broccol/, "verdS"],
+  [/vegetable|verdur|ortaggi/, "verdC"], [/fruit|frutta|berr/, "frutta"],
+  [/ready-meal|prepared-meal|meals|lasagn|piatti-pronti/, "cotto"]
+];
+function offCategory(p, name){
+  const hay = (p && p.categories_tags ? p.categories_tags.join(" ") : "") + " " + norm(name || "");
+  for (const [re, cat] of OFF_RULES) if (re.test(hay)) return cat;
+  return null;
+}
+function shortName(p){
+  let n = (p.product_name_it || p.product_name || p.generic_name_it || "").trim().replace(/\s+/g, " ");
+  if (n.length > 40) n = n.slice(0, 40).replace(/\s+\S*$/, "");
+  return n;
+}
+function prepForOcr(bitmap){
+  // solo ridimensionamento e scala di grigi: il contrasto lo gestisce Tesseract (con lo stiramento perdeva i titoli)
+  const max = 2000, k = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  const cv = document.createElement("canvas"); cv.width = Math.round(bitmap.width * k); cv.height = Math.round(bitmap.height * k);
+  const c = cv.getContext("2d"); c.filter = "grayscale(1)"; c.drawImage(bitmap, 0, 0, cv.width, cv.height);
+  return cv;
+}
+function scanRender(lines, status, more){
+  const out = $("scanOut"); out.hidden = false;
+  out.innerHTML = (status ? `<div class="st" id="scanSt">${status}</div>` : "") +
+    (lines.length ? `<ul>${lines.map(l => `<li><span class="${l.ok ? "ok" : "no"}">${l.ok ? "✓" : "–"}</span><span><b>${l.k}</b> ${l.v}${l.src ? ` <span class="src">${l.src}</span>` : ""}</span></li>`).join("")}</ul>` : "") +
+    (more ? `<button class="btn ghost small" type="button" id="bScanMore">Aggiungi un'altra foto (es. del lato con la data)</button>` : "");
+  const m = $("bScanMore"); if (m) m.onclick = () => $("fPhoto").click();
+}
+async function scanPhoto(file){
+  if (ocrBusy) return;
+  ocrBusy = true; $("bScan").disabled = true;
+  const S = st.scan = st.scan || {};
+  const say = txt => { const el = $("scanSt"); if (el) el.textContent = txt; else scanRender([], txt, false); };
+  try {
+    scanRender([], "Leggo la foto…", false);
+    const bitmap = await createImageBitmap(file);
+    // 1) codice a barre → Open Food Facts
+    if (!S.code){
+      say("Cerco il codice a barre…");
+      const code = await readBarcode(bitmap);
+      if (code){
+        S.code = code; st.code = code;
+        say(`Codice ${code}: cerco il prodotto…`);
+        S.off = await lookupOFF(code);
+      }
+    }
+    // 2) testo della confezione → date, giorni dopo l'apertura, peso
+    say("Leggo il testo della confezione… (la prima volta scarica il lettore, qualche secondo)");
+    ocrLog = m => { if (m.status === "recognizing text") say(`Leggo il testo… ${Math.round((m.progress || 0) * 100)}%`); };
+    const worker = await getOcr();
+    const {data} = await worker.recognize(prepForOcr(bitmap));
+    // senza Open Food Facts: il nome probabile è la riga di testo più grande, fatta di parole
+    if (!S.off && !S.nameGuess && data.lines && data.lines.length){
+      const cand = data.lines.map(l => ({t: (l.text || "").replace(/[^A-Za-zÀ-ÿ' ]+/g, " ").replace(/\s+/g, " ").trim(), h: l.bbox ? l.bbox.y1 - l.bbox.y0 : 0, conf: l.confidence || 0}))
+        .filter(l => l.t.length >= 4 && l.t.split(" ").length <= 6 && l.conf > 55 && !/INGREDIENT|VALORI|CONSERV|CONSUMAR|PESO|LOTTO/i.test(l.t))
+        .sort((a, b) => b.h - a.h)[0];
+      if (cand) S.nameGuess = cand.t.charAt(0).toUpperCase() + cand.t.slice(1).toLowerCase();
+    }
+    bitmap.close && bitmap.close();
+    const r = parseLabelText(data.text || "");
+    S.text = (S.text || "") + "\n" + (data.text || "");
+    if (r.exp && (!S.exp || r.expKind === "use")) { S.exp = r.exp; S.expKind = r.expKind; S.monthOnly = r.monthOnly; }
+    if (r.openDays) S.openDays = r.openDays;
+    if (r.weight && !S.weight) S.weight = r.weight;
+    applyScan(S);
+  } catch(e){
+    scanRender([], "Lettura non riuscita: " + (e.message || e), true);
+  } finally { ocrBusy = false; $("bScan").disabled = false; }
+}
+function applyScan(S){
+  const lines = [];
+  const p = S.off;
+  if (p){
+    const n = shortName(p);
+    if (n){ $("fName").value = n; }
+    lines.push({ok: !!n, k: "Prodotto:", v: n ? esc(n) + (p.brands ? ` · ${esc(p.brands.split(",")[0])}` : "") : "senza nome", src: "Open Food Facts"});
+  } else {
+    if (S.nameGuess && !$("fName").value.trim()) $("fName").value = S.nameGuess.slice(0, 40);
+    const why = S.code ? `codice ${esc(S.code)} non presente su Open Food Facts` : "codice a barre non trovato nella foto";
+    lines.push(S.nameGuess
+      ? {ok: true, k: "Nome:", v: `${esc($("fName").value)}`, src: `letto dal testo (${why}): controllalo`}
+      : {ok: false, k: "Prodotto:", v: `${why}: scrivi il nome a mano`});
+  }
+  const cat = offCategory(p, $("fName").value) || guessCat($("fName").value);
+  if (cat){ applyCat(cat, false); lines.push({ok: true, k: "Categoria:", v: esc(CAT[cat].n)}); }
+  const w = (p && p.quantity) ? p.quantity : S.weight;
+  if (w){ $("fWeight").value = String(w).slice(0, 18); lines.push({ok: true, k: "Peso:", v: esc(w)}); }
+  else lines.push({ok: false, k: "Peso:", v: "non trovato"});
+  if (S.exp){
+    $("fExp").value = S.exp; $("more").open = true;
+    const kind = S.expKind === "use" ? "da consumarsi entro" : S.expKind === "best" ? "preferibilmente entro" : "data trovata";
+    lines.push({ok: true, k: "Scadenza:", v: `${fmt(parse(S.exp))} (${kind}${S.monthOnly ? ", fine mese" : ""})`, src: "controllala"});
+  } else lines.push({ok: false, k: "Scadenza:", v: "non letta: fai una foto ravvicinata della data"});
+  if (S.openDays){ st.openDays = S.openDays; lines.push({ok: true, k: "Dopo l'apertura:", v: `consumare entro ${giorni(S.openDays)}`}); }
+  render();
+  scanRender(lines, "", !S.exp || !S.code);
+  $("fName").scrollIntoView({block: "start", behavior: "smooth"});
+}
+$("bScan").addEventListener("click", () => $("fPhoto").click());
+$("fPhoto").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if (f) scanPhoto(f); });
 
 /* Scorciatoie "Rifai": ultimi prodotti diversi */
 function renderRecent(){
@@ -970,7 +1226,7 @@ function renderList(){
 
 function recalc(it){
   const r = calc({name: it.name, cat: it.cat, state: normState(it.state), loc: it.loc, vac: it.vac, pack: it.pack, start: it.start,
-    open: it.open, exp: it.exp, flags: it.flags, manual: !!it.manual, manualDate: it.manual});
+    open: it.open, exp: it.exp, flags: it.flags, manual: !!it.manual, manualDate: it.manual, openDays: it.openDays});
   if (r.end){ it.end = iso(r.end); it.basis = r.basis; }
 }
 async function reprint(it, n){
